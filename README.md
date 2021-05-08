@@ -3,5 +3,5 @@ The repository includes the script **Source data figures** for reproducing the m
 cells with mitochondrial defects during early mouse
 development** (https://www.biorxiv.org/content/10.1101/2020.01.15.900613v2). 
 
-The raw data for reproducing all the scripts are on the server submit01ser at the adress:
-/home/ies/gabriele.lubatti/revision_heteroplasmy/Cell_Competition_data/Cell_Competition_Github
+The input data for running the script is availble in the folder and as source data with the paper:
+
