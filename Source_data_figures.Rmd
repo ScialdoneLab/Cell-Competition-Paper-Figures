@@ -64,6 +64,48 @@ up_p53_mouse=read.csv("up_p53_topo.csv",sep=",",header=T)
 down_p53_mouse=read.csv("down_p53_topo.csv",sep=",",header=T)
 geni_upr=read.csv2("ana_upr.csv",header=F)
 ```
+```{r }
+#setwd(base_path)
+#save(data_raw,data_tpm,QC_start,meta_dati,HVGC,file="all_input.Rdata")
+```
+
+```{r }
+#setwd(base_path)
+#load(file="meta_dati_course.Rda")
+#cells_fmk=row.names(meta_dati_course)[meta_dati_course$condition=="Cell competition OFF"]
+#cells_dmso=row.names(meta_dati_course)[meta_dati_course$condition=="Cell competition ON"]
+#data_fmk=data_raw[,cells_fmk]
+#data_dmso=data_raw[,cells_dmso]
+
+#meta_fmk=meta_dati_course[cells_fmk,]
+#meta_dmso=meta_dati_course[cells_dmso,]
+
+#clu_fmk=meta_dati_course$cluster
+#clu_fmk[clu_fmk==1]="Win Epi"
+#clu_fmk[clu_fmk==2]="ExE"
+#clu_fmk[clu_fmk==3]="Intermediate"
+#clu_fmk[clu_fmk==4]="Los Epi"
+#clu_fmk[clu_fmk==5]="VE"
+
+
+
+
+
+#meta_fmk=meta_dati_course
+
+#meta_fmk$cell_name=row.names(meta_fmk)
+#meta_fmk$nomi_cluster=clu_fmk
+
+
+
+#setwd("/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/Cell_Competition_Github/Input_data_Paper_Figures")
+#write.table(meta_fmk,file="meta_all.txt",row.names = F)
+#write.table(meta_dmso,file="meta_dmso.txt",row.names = F)
+#setwd("/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/Cell_Competition_Github/Input_data_Paper_Figures")
+#write.table(data_raw,file="data_raw.txt",row.names = F)
+#write.table(data_dmso,file="data_dmso.txt",row.names = F)
+
+```
 
 
 ```{r }
@@ -3289,6 +3331,134 @@ condition_ci[condition_ci=='FMK']='CI-treated'
 condition_ci[condition_ci=='DMSO']='DMSO-treated'
 ```
 
+## Extended Figure 7 M
+```{r}
+  library(karyoploteR)
+```
+
+```{r}
+setwd(base_path)
+mt_name=read.table("useful_mt_names.txt",sep="\t",header = T)
+mt_name=mt_name[mt_name$Chromosome.scaffold.name=="MT",]
+nomi=mt_name$Gene.name
+p=rep(0,length(nomi))
+for (j in 1:length(nomi)){
+i=which(mt_name$Gene.name==nomi[j])
+bo=seq(mt_name$Gene.start..bp.[i],mt_name$Gene.end..bp.[i])
+bo=as.character(bo)
+print(paste(sum(colnames(entropia_matrix_ci)%in%bo),nomi[i],sep=" "))
+if (sum(colnames(entropia_matrix_ci)%in%bo)>0){
+  p[i]=nomi[i]
+}
+  
+}
+
+
+mt_name_small=mt_name[mt_name$Gene.name%in%p,]
+start_plot=c(mt_name_small$Gene.start..bp.,mt_name_small$Gene.end..bp.)
+nomi_plot=paste0(mt_name_small$Gene.name,"-start")
+nomi_plot_2=paste0(mt_name_small$Gene.name,"-end")
+names(start_plot)=c(nomi_plot,nomi_plot_2)
+start_plot=sort(start_plot)
+
+nomi_plot=rep(mt_name_small$Gene.name,2)
+markers <- data.frame(chr=rep("MT", 12), pos=start_plot, labels=names(start_plot))
+
+start_inizio=mt_name$Gene.start..bp.
+start_fine=mt_name$Gene.end..bp.
+
+for (i in 2:(length(start_inizio))){
+  if (start_inizio[i]<start_fine[i-1]){
+    print(i)
+    start_inizio[i]=start_fine[i-1]}
+  
+}
+
+start_due=rep(0,length(start_inizio))
+fine_due=rep(0,length(start_inizio))
+for (i in 1:(length(start_inizio)-1)){
+  if (start_fine[i]!=start_inizio[i+1]){
+ start_due[i]=min(c(start_fine[i],start_inizio[i+1]))
+ fine_due[i]=max(c(start_fine[i],start_inizio[i+1]))
+}}
+
+colore_uno=rep("red",length(start_inizio))
+names(start_inizio)=colore_uno
+start_due[37]=start_fine[37]
+fine_due[37]=16299
+
+
+
+
+colore_due=rep("black",length(start_due))
+names(start_due)=colore_due
+fine_due=fine_due[fine_due!=0]
+start_due=start_due[start_due!=0]
+
+
+start_all=c(start_inizio,start_due)
+start_all=sort(start_all)
+fine_all=c(start_fine,fine_due)
+fine_all=sort(fine_all)
+name_base=paste0("A",seq(1:65))
+
+colore_new=names(start_all)
+
+colore_uno=rep("red",length(start_inizio))
+names(start_inizio)=colore_uno
+colore_bo=names(start_inizio)
+
+#provo=vedo_mt[1:2,]
+#provo$start=c(1,1000)
+#provo$end=c(1000,16299)
+```
+
+```{r}
+all_base=seq(1,16299)
+all_base=as.character(all_base)
+name_all_base=rep(0,16299)
+name_all_base[all_base%in%colnames(entropia_matrix_ci)]="Covered"
+name_all_base[!(all_base%in%colnames(entropia_matrix_ci))]="Not_Covered"
+name_all_base=paste0(name_all_base,all_base)
+colore=rep(0,16299)
+colore[all_base%in%colnames(entropia_matrix_ci)]="red"
+colore[!(all_base%in%colnames(entropia_matrix_ci))]="black"
+colore_plot=rep(0,16299)
+colore_plot[all_base%in%colnames(entropia_matrix_ci)]="acen"
+colore_plot[!all_base%in%colnames(entropia_matrix_ci)]="acen"
+#vedo_mt_new=data.frame(rep("MT",length(37)),all_base,all_base,name_all_base,colore_plot)
+
+provo_vedo=data.frame(rep("MT",length(65)),start_all,fine_all,name_base,colore_new)
+#vedo_mt_new=data.frame(rep("MT",length(16299)),all_base,all_base,colore)
+#colnames(provo_vedo)=colnames(vedo_mt)
+
+#provo_vedo_due=provo_vedo[1:3,]
+#provo_vedo_due$end[3]=16299
+#provo_vedo_due=provo_vedo_due[-4]
+
+custom.genome <- toGRanges(data.frame(chr=c("MT"), start=c(1), end=c(16299)))
+#custom.cytobands <- toGRanges(vedo_mt_new)
+#kp <- plotKaryotype(genome = custom.genome,cytobands =custom.cytobands )
+#custom.cytobands <- toGRanges(provo_vedo)
+#kp <- plotKaryotype(genome = custom.genome,cytobands = custom.cytobands)
+kp <- plotKaryotype(genome = custom.genome )
+
+df <- data.frame(chr=rep("MT",16299), start=all_base, end=all_base)
+kpPlotRegions(kp, data=df, col=colore, border=colore, r0=0.3, r1=0.55)
+
+
+#df_second <- data.frame(chr=c("MT"), start=start_inizio, end=start_fine)
+#kpPlotRegions(kp, data=df_second, col=colore_bo, border=colore_bo, r0=0, r1=0.25,avoid.overlapping=F)
+
+#markers <- data.frame(chr=rep("MT", 10), pos=(1:10*10), labels=paste0("Gene", 1:10))
+#markers <- data.frame(chr=rep("MT", 37), pos=(mt_name$Gene.start..bp.), labels=mt_name$Gene.name)
+markers <- data.frame(chr=rep("MT", 12), pos=start_plot, labels=names(start_plot))
+kpAddBaseNumbers(kp,tick.dist=1000,minor.tick.dist=1000,add.units=T,tick.len = 30)
+
+kpPlotMarkers(kp, chr=markers$chr, x=markers$pos, labels=markers$labels)
+
+
+```
 
 ```{r}
 
