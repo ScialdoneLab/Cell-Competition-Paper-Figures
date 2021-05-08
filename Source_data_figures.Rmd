@@ -55,18 +55,33 @@ base_path="/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/Cell_Competition
 setwd(base_path)
 load(file='data_raw.Rda')
 load(file='data_tpm.Rda')
-load(file='QC_start.Rda')
-load(file='meta_dati.Rda')
-load("HVGC_giusto_no_un.Rda")
-load("Gene_Name_ID.Rda")
-data_p53=read.csv("p53_full.csv",sep=";",header=T)
-up_p53_mouse=read.csv("up_p53_topo.csv",sep=",",header=T)
-down_p53_mouse=read.csv("down_p53_topo.csv",sep=",",header=T)
-geni_upr=read.csv2("ana_upr.csv",header=F)
+#load(file='QC_start.Rda')
+#load(file='meta_dati.Rda')
+#load("HVGC_giusto_no_un.Rda")
+#load("Gene_Name_ID.Rda")
+#data_p53=read.csv("p53_full.csv",sep=";",header=T)
+#up_p53_mouse=read.csv("up_p53_topo.csv",sep=",",header=T)
+#down_p53_mouse=read.csv("down_p53_topo.csv",sep=",",header=T)
+#geni_upr=read.csv2("ana_upr.csv",header=F)
 ```
+
 ```{r }
 #setwd(base_path)
-#save(data_raw,data_tpm,QC_start,meta_dati,HVGC,file="all_input.Rdata")
+#save(QC_start,meta_dati,HVGC,nome_gene,file="input_for_figures.Rdata")
+```
+
+```{r }
+setwd(base_path)
+data_p53=read.csv("p53_full.csv",sep=";",header=T)
+up_p53_mouse=read.csv("up_p53_mouse.csv",sep=",",header=T)
+down_p53_mouse=read.csv("down_p53_mouse.csv",sep=",",header=T)
+geni_upr=read.csv2("ana_upr.csv",header=F)
+```
+
+
+```{r }
+setwd(base_path)
+load("input_for_figures.Rdata")
 ```
 
 ```{r }
@@ -1709,7 +1724,7 @@ colnames(raw_dati)[9]="P2A4HB_GFP_CO_1"
 colnames(raw_dati)[10]="P2A4HB_GFP_CO_2"
 
 
-#INIZIO ARRAY EXPRESS
+
 setwd(base_path)
 meta_data=read.table("metadata_ana_new.csv",sep=";",header=F)
 nuovo=as.vector(meta_data$V5)
@@ -1855,8 +1870,7 @@ fisher.test(matrice)
 ```
 
 ```{r}
-#di seguito c'e' un esempio copiato da notebook vecchio
-#gene ontology analysis
+
 setwd(base_path)
 ward_down_no=read.csv("down_ana_last_version.csv")
 #go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
@@ -1889,8 +1903,7 @@ down_vitro_component=down_output_no
 
 ```
 ```{r}
-#di seguito c'e' un esempio copiato da notebook vecchio
-#gene ontology analysis
+
 setwd(base_path)
 ward_down_no=read.csv("up_ana_last_version.csv")
 #go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
@@ -1923,8 +1936,7 @@ up_vitro_component=down_output_no
 
 ```
 ```{r}
-#di seguito c'e' un esempio copiato da notebook vecchio
-#gene ontology analysis
+
 setwd(base_path)
 ward_down_no=read.csv("down_vivo_last_version.csv")
 #go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
@@ -1957,8 +1969,7 @@ down_vivo_component=down_output_no
 
 ```
 ```{r}
-#di seguito c'e' un esempio copiato da notebook vecchio
-#gene ontology analysis
+
 setwd(base_path)
 ward_down_no=read.csv("up_vivo_last_version.csv")
 #go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
@@ -2007,7 +2018,7 @@ upset(fromList(listInput), order.by = "freq")
 
 
 
-
+### Comaprison with data from Cheng, S. et al. Single-Cell RNA-Seq Reveals Cellular Heterogeneity of Pluripotency Transition and X Chromosome Dynamics during Early Mouse Development. Cell Rep 26, 2593-2607 e2593 (2019).
 
 ```{r}
 
@@ -2282,7 +2293,7 @@ setwd(base_path)
 #lunghezze=getGeneLengthAndGCContent(row.names(dati_confronto), org="mmu")
 #lunghezze_data=as.data.frame(lunghezze)
 #save(lunghezze_data,file="lunghezze_data.Rda")
-load("lunghezze_data.Rda")
+load("length_genes.Rda")
 #lunghezze_data_wolf=lunghezze_data[geni,]
 
 geni_nuovo_nuovo=row.names(lunghezze_data)[!(is.na(lunghezze_data$length))]
@@ -2896,7 +2907,7 @@ nomi=read.csv("old_2_cell_names.csv")
 nomi=nomi$X0
 nomi=as.vector(nomi)
 setwd(base_path)
-all_pos=read.csv("old_2_mt_all.csv")
+all_pos=read.csv("raw_counts_allele_mt.csv")
 all_pos=all_pos[,-1]
 colnames(all_pos)=substring(colnames(all_pos),2,nchar(colnames(all_pos)))
 
@@ -2918,7 +2929,7 @@ vedere_numb=substring(vedere,1,nchar(vedere)-1)
 #nomi cellule e cluster
 setwd(base_path)
 load("provo_ward_no_un.Rda")
-load("nomi_full.Rda")#name of the old bam file
+load("name_full.Rda")#name of the old bam file
 #load("nomi_nuovi.Rda")#name on array express
 #load("nomi_vecchi.Rda")#
 nomi_nuovi=meta_dati$nomi_nuovi
