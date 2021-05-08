@@ -1,0 +1,3578 @@
+
+---
+title: "Paper Figures"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r }
+gc()
+rm(list=ls())
+library(gam)
+library(scran)
+library(ggplot2)
+library(dynamicTreeCut)
+library(umap)
+library(ComplexHeatmap)
+library(gridExtra)
+library(grid)
+library(viridis)
+library(destiny)
+library(circlize)
+library(ggforce)
+library(edgeR)
+library(fpc)
+library(Seurat)
+library(scater)
+
+```
+
+```{r }
+#base='/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition'
+base_path="/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/Cell_Competition_Github/Input_data_Paper_Figures"
+```
+
+```{r }
+#setwd("/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/Script")
+#load("data_tpm.Rda")
+#load(file="data.Rda")
+#load(file="good_cells.Rda")
+#load(file="meta_dati.Rda")
+```
+
+
+
+
+```{r }
+#geni_comuni=intersect(row.names(data),row.names(data_tpm))
+#data_raw=data[geni_comuni,colnames(data_tpm)]
+#data_tpm=data_tpm[geni_comuni,]
+```
+
+
+```{r }
+setwd(base_path)
+load(file='data_raw.Rda')
+load(file='data_tpm.Rda')
+load(file='QC_start.Rda')
+load(file='meta_dati.Rda')
+load("HVGC_giusto_no_un.Rda")
+load("Gene_Name_ID.Rda")
+data_p53=read.csv("p53_full.csv",sep=";",header=T)
+up_p53_mouse=read.csv("up_p53_topo.csv",sep=",",header=T)
+down_p53_mouse=read.csv("down_p53_topo.csv",sep=",",header=T)
+geni_upr=read.csv2("ana_upr.csv",header=F)
+```
+
+
+```{r }
+#setwd("/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/SC_course")
+#load(file="data_tpm_course.Rda")
+#load(file="data_raw_course.Rda")
+#load("meta_dati1.Rda")
+#load("HVGC_giusto_no_un.Rda")
+#load("Gene_Name_ID.Rda")
+
+```
+
+```{r }
+meta_dati=meta_dati[colnames(data_raw),]
+Condition=rep(0,length(meta_dati$Sample))
+Condition[grep("FMK",meta_dati$Sample)]="Cell competition OFF"
+Condition[grep("DMSO",meta_dati$Sample)]="Cell competition ON"
+```
+
+## Extended Figure 1 A
+```{r}
+QC_start_good=QC_start
+QC_start_good$quality_control="Good Cells"
+pw1=ggplot(QC_start_good, aes(QC_start_good$quality_control,QC_start_good$numAbove10rpm)) +
+  geom_boxplot() +ggtitle("QC (723 cells)")+ylab("numAbove10rpm")+xlab(NULL)
+pw2=ggplot(QC_start_good, aes(QC_start_good$quality_control,QC_start_good$fracSpikes)) +
+  geom_boxplot() +ggtitle("QC (723 cells)")+ylab("Fraction of spikes")+xlab(NULL)
+
+pw3=ggplot(QC_start_good, aes(QC_start_good$quality_control,QC_start_good$fracMTs)) +
+  geom_boxplot() +ggtitle("QC (723 cells)")+ylab("Fraction of MTs")+xlab(NULL)
+
+pw4=ggplot(QC_start_good, aes(QC_start_good$quality_control,QC_start_good$fracGenes)) +
+  geom_boxplot() +ggtitle("QC (723 cells)")+ylab("Fraction of Genes")+xlab(NULL)
+
+
+pw5=ggplot(QC_start_good, aes(QC_start_good$quality_control,QC_start_good$fracMappedReads)) +
+  geom_boxplot() +ggtitle("QC (723 cells)")+ylab("Frac of Mapped Reads")+xlab(NULL)
+
+pw6=ggplot(QC_start_good, aes(QC_start_good$quality_control,QC_start_good$totReadsLog10)) +
+  geom_boxplot() +ggtitle("QC (723 cells)")+ylab("Tot number of reads(Log10)")+xlab(NULL)
+
+grid.arrange(pw1,pw2,pw3,pw4,pw5,pw6,ncol=3,nrow=2)
+
+
+
+
+```
+
+## Figure 1 D
+
+```{r }
+
+log_data_tpm <- log10(data_tpm[HVGC,]+1)
+
+log_data_tpm<-as.matrix(log_data_tpm)
+dissimilarity <- sqrt((1-cor((log_data_tpm), method = "spearman"))/2)
+
+my.dist <- as.dist(dissimilarity) 
+set.seed(100)
+object<-umap(d=as.matrix(my.dist),input="dist")
+
+umap_met<-as.data.frame(object$layout)
+
+
+qs_upa<-ggplot(as.data.frame(object$layout), aes(umap_met[,1],umap_met[,2],color=as.factor(Condition) )) +
+  geom_point()
+qs_upa+scale_color_manual(values=c("green 1", "yellow 1"))+ labs(colour = "Condition")+labs(x = "Umap1",y="Umap2") + ggtitle(NULL)
+```
+
+
+## Figure 1 C
+
+```{r }
+my.tree <- hclust(my.dist
+                  , method="ward.D2" # met = "ward.D2" was adopted form the reference
+                  )
+my.clusters <- cutreeHybrid(my.tree
+                            ,distM=as.matrix(my.dist),deepSplit=0
+                            ,minClusterSize = 35)$label#5)$label
+
+length(unique(my.clusters))
+classe<-data.frame(Cell_type = meta_dati$Sample
+                                          ,cluster = my.clusters)
+classe$condizione=Condition 
+
+
+
+table(classe$cluster,classe$condizione)
+Cluster=as.factor(classe$cluster)
+
+sp<-ggplot(as.data.frame(object$layout),aes(umap_met[,1],umap_met[,2],color=Cluster)) + geom_point()
+sp + scale_color_manual(values=c("#DD6400", "#800080","#0000FF", "#006400","#56B4E9","#A9A9A9"),labels=c("Normal (winner) Epiblast (78FMK/229DMSO) ","Extra Embrionic Ectoderm (77FMK/94DMSO)","Intermediate (125FMK/9DMSO)","Loser Epiblast (71FMK/0 DMSO)","Visceral Endoderm (16FMK/24DMSO)"))+labs(x = "Umap1",y="Umap2") + ggtitle(NULL)
+
+```
+
+```{r }
+#setwd("/Users/gabriele.lubatti/Desktop/Phd/entropy_of_mixing_library/teichman_data")
+#load("gene_id_name_table.RData")
+#row.names(temp)=as.character(temp$Gene_stable_ID)
+
+
+#gene.name.id<-as.character(temp[,"Gene_stable_ID"])
+#names(gene.name.id)<-as.character(temp[,"Gene_name"])
+
+#geni_mt_id=row.names(data_raw)[row.names(data_raw)%in%as.vector(gene.name.id[grep("mt-",names(gene.na#me.id))])]
+
+#cells_epi=colnames(data_raw)[classe$cluster==1|classe$cluster==3|classe$cluster==4]
+
+
+#row.names(classe)=colnames(data_raw)
+#classe_epi=classe[cells_epi,]
+#classe_epi=classe_epi[classe_epi$condizione=="Cell competition OFF",]
+#cluster_condition=rep(0,length(classe_epi$cluster))
+#cluster_condition[classe_epi$cluster==1&classe_epi$condizione=="Cell competition OFF"]="Winner cells"
+#cluster_condition[classe_epi$cluster==3&classe_epi$condizione=="Cell competition OFF"]="Intermediate #cells"
+#cluster_condition[classe_epi$cluster==4&classe_epi$condizione=="Cell competition OFF"]="Loser cells"
+#cluster_condition[classe_epi$cluster==1&classe_epi$condizione=="Cell competition ON"]="Win Epi DMSO"
+#cluster_condition[classe_epi$cluster==3&classe_epi$condizione=="Cell competition ON"]="Int Epi DMSO"
+
+#sum_mt=apply(data_raw[geni_mt_id,row.names(classe_epi)],2,sum)
+#cluster_condition=factor(cluster_condition,levels=c("Winner cells","Intermediate cells","Loser #cells"))
+#data_plot=data.frame(cluster_condition,sum_mt)
+
+#p<-ggplot(data_plot, aes(x=cluster_condition, y=sum_mt, fill=cluster_condition)) +
+  #geom_boxplot()+labs(fill="Cluster")+ylab("Number of reads mapping to mtDNA")+xlab("Cluster ")
+#p+scale_fill_manual(values=c("#DD6400", "#0000FF", "#006400"))+ggtitle("mtDNA coverage for CI treated #cells")
+
+#geni_mt_id=row.names(data_raw)[row.names(data_raw)%in%as.vector(gene.name.id[grep("mt-Rnr",names(gene#.name.id))])]
+#sum_mt=apply(data_raw[geni_mt_id,row.names(classe_epi)],2,sum)
+#cluster_condition=factor(cluster_condition,levels=c("Win Epi CI","Intermediate Epi CI","Los Epi CI"))
+#data_plot=data.frame(cluster_condition,sum_mt)
+
+#p<-ggplot(data_plot, aes(x=cluster_condition, y=sum_mt, fill=cluster_condition)) +
+  #geom_boxplot()+labs(fill="Cluster")+ylab("mtDNA content")+xlab("Cluster ")
+#p+scale_fill_manual(values=c("#DD6400", "#0000FF", "#006400"))+ggtitle("mtDNA content from only #mt-Rnr1 and mt-Rnr2")
+
+
+```
+## Extended Figure 1 F
+
+```{r}
+
+
+my.clusters_0 <- cutreeHybrid(my.tree
+                            ,distM=as.matrix(my.dist),deepSplit=0
+                            ,minClusterSize = 35)$label#5)$label
+
+my.clusters_1 <- cutreeHybrid(my.tree
+                            ,distM=as.matrix(my.dist),deepSplit=1
+                            ,minClusterSize = 35)$label#5)$label
+
+
+
+
+
+my.clusters_0[my.clusters_0==1]="Win Epi"
+my.clusters_0[my.clusters_0==2]="ExE"
+my.clusters_0[my.clusters_0==3]="Intermediate"
+my.clusters_0[my.clusters_0==4]="Los Epi"
+my.clusters_0[my.clusters_0==5]="VE"
+classe_new<-data.frame(deepSplit0 = my.clusters_0,deepSplit1=my.clusters_1)
+
+
+
+
+
+
+
+
+```
+
+```{r }
+library(clustree)
+clustree(classe_new,prefix="deepSplit")
+```
+
+
+
+
+
+## Extended Figure 1 E
+```{r}
+
+data_tpm_log=log10(data_tpm+1)
+# mr of repeats for bootsraping
+nrRepeats = 100
+# percent of gHVGs to use
+percent = 60
+# nr of HVGs left
+sampleSize <- round(length(HVGC)*percent/100)
+myBootstrap <- function(indexVector){
+        idxMatrix <- matrix(rep(NA, sampleSize*nrRepeats)
+                            ,nrow = nrRepeats)
+        for (i in 1:nrow(idxMatrix)){
+                mySample <- sample(indexVector
+                                   ,size = sampleSize)
+                idxMatrix[i,] <- mySample
+        }
+        idxMatrix
+}
+# indices of all HVGs
+HVGidx <- which(rownames(data_tpm_log) %in% HVGC)
+bootstrapIdxMatrix <- myBootstrap(HVGidx)
+# function to calculated clusters
+claculateClusters <- function(geneIndices,deepSplit){
+        chosen.exprs <- (data_tpm_log)[geneIndices,]
+        # Calculate distance matrix between cells
+        dissimilarity <- sqrt((1-cor(chosen.exprs, method = "spearman"))/2)
+        my.dist <- as.dist(dissimilarity) 
+        my.tree <- hclust(my.dist
+                          , method="ward.D2" # method = "ward.D2" was adopted form the reference https://f1000research.com/articles/5-2122/v1 NOTE: next time take method "average"
+                          # some good reference about the different methods is here: https://cran.r-project.org/web/packages/dendextend/vignettes/Cluster_Analysis.html#the-3-clusters-from-the-complete-method-vs-the-real-species-category
+                          )
+        # Cut the treee to identify clusters
+        my.clusters <- cutreeHybrid(my.tree
+                                    ,distM=as.matrix(my.dist)
+                                    ,deepSplit = deepSplit
+                                    )$label
+        
+        #names(my.clusters) <- clean_annotation$Run_Lane
+        # calculate the cluster statistics
+        clusterStatistics <- cluster.stats(d = my.dist
+                                           ,clustering = my.clusters)
+        
+        result <- list("PearsonGamma" = clusterStatistics$pearsongamma
+                       ,"avgSilhouetteWidth" = clusterStatistics$avg.silwidth)
+        result
+}
+
+# dummy vector of Pearson
+        
+        # Cluster the data
+        # Make hierarchical clustering
+# dummy vector of Pearson Gammas for 5 deepSplit values and 100 bootstrap repeats
+PearsonGammaVector <- matrix(rep(NA, nrRepeats * 5)
+                             ,ncol = 5)
+colnames(PearsonGammaVector) <- c(0,1,2,3,4)
+
+# dummy vector of average silhouette width for 5 deepSplit values and 100 bootstrap repeats
+avgSilhouetteWidth <- matrix(rep(NA, nrRepeats * 5)
+                             ,ncol = 5)
+colnames(avgSilhouetteWidth) <- c(0,1,2,3,4)
+for(j in 0:4){
+        for (i in 1:nrow(bootstrapIdxMatrix)){
+                print(paste("i is", i, ", j is" ,j)) # just to keep track of the iterations???
+                # take indices of HVGs from the bootstrapIdxMatrix of the i-th iteration
+                indices <- bootstrapIdxMatrix[i,]
+                # calculate the cluster statistics with these indices and deepSplit == j
+                myResults <- claculateClusters(indices,j)
+                
+                # save the Pearsom gammma results
+                PearsonGammaVector[i,j+1] <- myResults$PearsonGamma
+                # save the average silhouette width results
+                avgSilhouetteWidth[i,j+1] <- myResults$avgSilhouetteWidth    
+        }
+}
+
+
+pearsonGammaBoxplot <- boxplot(PearsonGammaVector
+                               ,use.cols = TRUE
+                               ,main = "Pearson Gamma"
+                               ,xlab = "deepSplit"
+                               ,ylab = "Pearson Gamma"
+                               )
+pearsonGammaBoxplot
+avgSilWidth <- boxplot(avgSilhouetteWidth
+                       ,use.cols = TRUE
+                       ,main = "Average Silhouette Width"
+                       ,xlab = "deepSplit"
+                       ,ylab = "Average Silhouette Width"
+                       )
+avgSilWidth
+
+```
+
+
+
+## Extended Figure 1 D
+
+
+```{r }
+batch=meta_dati$Batch
+sp<-ggplot(as.data.frame(object$layout),aes(umap_met[,1],umap_met[,2],color=as.factor(batch)) )+ geom_point()+
+  labs(x = "Umap1",y="Umap2",col="Batch") + ggtitle(NULL)
+sp
+```
+
+## Figure 1 E
+
+
+```{r }
+
+fmk_1=sum(classe$cluster==1&classe$condizione=="Cell competition ON")/sum(classe$condizione=="Cell competition OFF"&(classe$cluster==1))
+fmk_3=sum(classe$cluster==3&classe$condizione=="Cell competition ON")/sum(classe$condizione=="Cell competition OFF"&(classe$cluster==3))
+fmk_4=sum(classe$cluster==4&classe$condizione=="Cell competition ON")/sum(classe$condizione=="Cell competition OFF"&(classe$cluster==4))
+FMK=c(fmk_1,fmk_3,fmk_4)
+data.frame(FMK)
+correlazione=round(data.frame(FMK),2)
+colnames(correlazione)="DMSO/CI"
+row.names(correlazione)=c("Cluster 1-Normal","Cluster 3-Intermediate","Cluster 4-Loser")
+
+ht21 = Heatmap((correlazione)# heat.vals_Mutant_Paired #
+               ,cluster_rows = F
+                  , col= colorRamp2(c((min(correlazione)),1, round(max(correlazione))), c("blue","grey" ,"red"))
+                  , name = "Enrichment"
+                  , column_title = "Epiblast cells (512)"
+                  #, cluster_columns = as.dendrogram(my.tree)
+, cluster_columns = F
+                  #, cluster_rows = TRUE #=as.dendrogram(as.numeric(row.names(log_data_tpm)[1:10]) )
+                  #, top_annotation = haCol1
+                  , row_names_gp = gpar(fontsize = 10
+                                       #,col = geneColors
+                   )
+
+,column_names_gp = gpar(fontsize=14)
+                  , show_column_names = T
+                  , show_row_names = T
+                  )
+draw(ht21
+    #,column_title = "Absolute values", column_title_side = "top"
+)
+
+```
+
+## Extended Figure 1 B and C 
+
+```{r }
+
+#table(classe$cluster,classe$condizione)
+Cluster=as.factor(classe$cluster)
+
+classe$batch=batch
+
+dati=table(as.factor(classe$cluster),as.factor(classe$batch))
+dati_2=table(classe$condizione,classe$batch)
+dati
+dati_2
+```
+
+
+
+```{r }
+meta_dati_course=data.frame(batch,classe$cluster,classe$condizione)
+colnames(meta_dati_course)=c("batch","cluster","condition")
+row.names(meta_dati_course)=colnames(data_raw)
+good=colnames(data_raw)
+setwd(base_path)
+save(meta_dati_course,file="meta_dati_course.Rda")
+
+
+```
+
+## Figure 1 B
+
+```{r }
+my.clusters=as.vector(my.clusters)
+index_1=grep("1",my.clusters)
+index_2=grep("2",my.clusters)
+index_3=grep("3",my.clusters)
+index_4=grep("4",my.clusters)
+index_5=grep("5",my.clusters)
+
+condition_1=Condition[index_1]
+condition_1_ci=grep("Cell competition OFF",condition_1)
+condition_1_dmso=grep("Cell competition ON",condition_1)
+index_1_fine=c(condition_1_ci,condition_1_dmso)
+medium_1=condition_1[index_1_fine]
+
+condition_2=Condition[index_2]
+condition_2_ci=grep("Cell competition OFF",condition_2)
+condition_2_dmso=grep("Cell competition ON",condition_2)
+index_2_fine=c(condition_2_ci,condition_2_dmso)
+medium_2=condition_2[index_2_fine]
+
+condition_3=Condition[index_3]
+condition_3_ci=grep("Cell competition OFF",condition_3)
+condition_3_dmso=grep("Cell competition ON",condition_3)
+index_3_fine=c(condition_3_ci,condition_3_dmso)
+medium_3=condition_3[index_3_fine]
+
+condition_4=Condition[index_4]
+condition_4_ci=grep("Cell competition OFF",condition_4)
+condition_4_dmso=grep("Cell competition ON",condition_4)
+index_4_fine=c(condition_4_ci,condition_4_dmso)
+medium_4=condition_4[index_4_fine]
+
+condition_5=Condition[index_5]
+condition_5_ci=grep("Cell competition OFF",condition_5)
+condition_5_dmso=grep("Cell competition ON",condition_5)
+index_5_fine=c(condition_5_ci,condition_5_dmso)
+medium_5=condition_5[index_5_fine]
+
+
+good_1=good[index_1]
+good_finale_1=good_1[index_1_fine]
+
+good_2=good[index_2]
+good_finale_2=good_2[index_2_fine]
+
+good_3=good[index_3]
+good_finale_3=good_3[index_3_fine]
+
+good_4=good[index_4]
+good_finale_4=good_4[index_4_fine]
+
+good_5=good[index_5]
+good_finale_5=good_5[index_5_fine]
+
+
+cluster_1=my.clusters[index_1]
+cluster_finale_1=cluster_1[index_1_fine]
+
+cluster_2=my.clusters[index_2]
+cluster_finale_2=cluster_2[index_2_fine]
+
+cluster_3=my.clusters[index_3]
+cluster_finale_3=cluster_3[index_3_fine]
+
+cluster_4=my.clusters[index_4]
+cluster_finale_4=cluster_4[index_4_fine]
+
+cluster_5=my.clusters[index_5]
+cluster_finale_5=cluster_5[index_5_fine]
+
+
+
+cluster_finale=c(cluster_finale_1,cluster_finale_3,cluster_finale_4,cluster_finale_2,cluster_finale_5)
+
+good_finale=c(good_finale_1,good_finale_3,good_finale_4,good_finale_2,good_finale_5)
+medium_finale=c(medium_1,medium_3,medium_4,medium_2,medium_5)
+
+
+geni_icb_exe=c(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Cdx2")],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Bmp4")],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Elf5")])
+geni_icb_epi=c(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Gng3")],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Slc7a3")],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Pou5f1")])
+geni_icb_ave=c(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Hhex")][1],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Cer1")],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Lefty1")])
+geni_icb_ve=c(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Gata6")],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Apob")],nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Afp")])
+
+geni_icb=c(geni_icb_epi,geni_icb_exe,geni_icb_ve)
+chosen.exprs_new_icb<-log10(data_tpm+1)[geni_icb,good_finale]
+row_nuove<-nome_gene[row.names(chosen.exprs_new_icb),2]
+
+geni_exe<-paste(c("Cdx2","Bmp4","Elf5"),"(ExE)",sep="")
+geni_ep<-paste(c("Gng3","Slc7a3","Pou5f1"),"(Epi)",sep="")
+geni_ve=paste(c("Gata6","Apob","Afp"),"(VE)",sep="")
+
+
+
+row.names(chosen.exprs_new_icb)<-c(geni_ep,geni_exe,geni_ve)
+
+
+numero_clu=rep(0,length(my.clusters))
+numero_clu[cluster_finale==1]="Normal (Winner) Epiblast"
+numero_clu[cluster_finale==2]="Extraembryonic Ectoderm"
+numero_clu[cluster_finale==3]="Intermediate"
+numero_clu[cluster_finale==4]="Loser Epiblast"
+numero_clu[cluster_finale==5]="Visceral Endoderm"
+
+#medium_clu=rep(0,length(medium_finale))
+#medium_clu[medium_finale=="Cell competition OFF"]="CI-treated"
+#medium_clu[medium_finale=="Cell competition ON"]="DMSO-treated"
+
+haCol1 = HeatmapAnnotation(df = data.frame(Cluster = numero_clu
+                                          ,Condition = medium_finale)
+                               , col = list(Condition = c("Cell competition ON" = "yellow 1", "Cell competition OFF"="green 1"
+                                                      
+                                                     )
+                                           
+                                            
+                                            ,Cluster = c("Normal (Winner) Epiblast" = "#DD6400"
+                                                         ,"Extraembryonic Ectoderm" = "#800080"
+                                                         ,"Intermediate"= "#0000FF"
+                                                                ,"Loser Epiblast"="#006400"
+                                                         ,"Visceral Endoderm"="#56B4E9"
+                                                         ,"Losing "="#A9A9A9"
+                                                         
+                                                         )
+                                       )
+                               , show_legend = T
+            )
+
+
+
+ht21 = Heatmap(chosen.exprs_new_icb# heat.vals_Mutant_Paired #
+               ,cluster_rows = FALSE
+                  , col= colorRamp2(c(0, round(max(chosen.exprs_new_icb))), c("white", "red"))
+                  , name = "log 10 norm counts"
+                  #, column_title = "Absolute values"
+                  #, cluster_columns = as.dendrogram(my.tree)
+               ,cluster_columns = F
+
+                  #, cluster_rows =as.dendrogram(as.numeric(row.names(log_data_tpm)[1:10]) )
+                  , top_annotation = haCol1
+                  , row_names_gp = gpar(fontsize = 8
+                                       #,col = geneColors
+                   )
+                  , show_column_names = F
+                  , show_row_names = T
+                  )
+#setwd("/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/methdo_text_paper")
+#pdf("heatmap_no_time.pdf",useDingbats = F)
+draw(ht21
+    #,column_title = "Absolute values", column_title_side = "top"
+)
+
+#dev.off()
+```
+
+## Extended Figure 2 C and D
+
+```{r }
+
+row.names(classe)=good
+cells_epi=row.names(classe)[classe$cluster==1|classe$cluster==3|classe$cluster==4]
+
+Cluster_col=classe$cluster
+
+library(ggplot2)
+
+set.seed(1000)
+dm=DiffusionMap(dissimilarity)
+
+DC1=dm$DC1
+DC2=dm$DC2
+Cluster=as.factor(Cluster_col)
+tre=data.frame(DC1,DC2,Cluster)
+dpt <- DPT(dm)
+
+#str(dpt)
+#tips(dpt)
+
+plot(dpt,col_by = 'DPT158')
+
+
+
+cells_epi=row.names(classe)[classe$cluster==1|classe$cluster==3|classe$cluster==4]
+set.seed(100)
+dm=DiffusionMap(dissimilarity[cells_epi,cells_epi])
+DC1=dm$DC1
+DC2=dm$DC2
+Cluster_col=classe[cells_epi,]$cluster
+Cluster=as.factor(Cluster_col)
+classe_epi=classe[cells_epi,]
+Condition=as.factor(classe_epi$condizione)
+tre=data.frame(DC1,DC2,Cluster)
+
+
+ diffu<-ggplot(tre, aes(x=DC1 , y=DC2 , color= Cluster)) + geom_point()
+diffu + scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Normal (winner) Epiblast","Intermediate", "Loser Epiblast"))+labs(x = "DC1",y="DC2") + ggtitle("Diffusion Map")
+
+ diffu<-ggplot(tre, aes(x=DC1 , y=DC2 , color= Condition)) + geom_point()+
+   scale_color_manual(values=c("green 1", "yellow 1"))
+diffu
+
+dpt <- DPT(dm)
+
+#str(dpt)
+#tips(dpt)
+
+plot(dpt, col_by = 'DPT307')
+
+time_all_epi=dpt$DPT307
+
+```
+
+## Figure 2 A and D
+
+
+```{r }
+
+library(destiny)
+cells_epi_fmk=row.names(classe)[(classe$cluster==1 & classe$condizione=="Cell competition OFF")|(classe$cluster==3 & classe$condizione=="Cell competition OFF")|(classe$cluster==4 & classe$condizione=="Cell competition OFF")]
+
+set.seed(1000)
+dm=DiffusionMap(dissimilarity[cells_epi_fmk,cells_epi_fmk])
+DC1=dm$DC1
+DC2=dm$DC2
+Cluster_col=classe[cells_epi_fmk,]$cluster
+Cluster=as.factor(Cluster_col)
+tre=data.frame(DC1,DC2,Cluster)
+
+
+ diffu<-ggplot(tre, aes(x=DC1 , y=DC2 , color= Cluster)) + geom_point()
+
+  
+diffu + scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Normal (winner) Epiblast","Intermediate", "Loser Epiblast"))+labs(x = "DC1",y="DC2") + ggtitle("Diffusion Map")
+
+
+Condition_clu=classe[cells_epi_fmk,]$condizione
+Condition_clu=as.factor(Condition_clu)
+Condition=Condition_clu
+tre=data.frame(DC1,DC2,Condition_clu)
+
+
+
+
+ diffu<-ggplot(tre, aes(x=DC1 , y=DC2 , color= Condition)) + geom_point()
+
+ 
+diffu + scale_color_manual(values=c("green 1", "yellow 1"))+labs(x = "DC1",y="DC2") + ggtitle("Diffusion Map")
+
+dpt <- DPT(dm,tips=1)
+
+
+#tips(dpt)
+
+
+plot(dpt, col_by = 'DPT119')
+
+
+time_fmk_epi=dpt$DPT119
+
+setwd(base_path)
+save(time_fmk_epi,file="time_fmk_epi.Rda")
+
+```
+
+
+## Figure 2 E
+```{r}
+cells_epi_fmk=row.names(classe)[(classe$cluster==1 & classe$condizione=="Cell competition OFF")|(classe$cluster==3 & classe$condizione=="Cell competition OFF")|(classe$cluster==4 & classe$condizione=="Cell competition OFF")]
+cells_epi_dmso=row.names(classe)[(classe$cluster==1 & classe$condizione=="Cell competition ON")|(classe$cluster==3 & classe$condizione=="Cell competition ON")|(classe$cluster==4 & classe$condizione=="Cell competition ON")]
+Cluster_clu_fmk=classe[cells_epi_fmk,]$cluster
+Cluster_clu_dmso=classe[cells_epi_dmso,]$cluster
+Condition_clu_fmk=classe[cells_epi_fmk,]$condizione
+Condition_clu_dmso=classe[cells_epi_dmso,]$condizione
+
+set.seed(1000)
+dm=DiffusionMap(dissimilarity[cells_epi_fmk,cells_epi_fmk])
+dmp=dissimilarity[cells_epi_dmso,cells_epi_fmk]
+pred=dm_predict(dm,dmp)
+
+
+prima=c(dm$DC1,pred[,1]) 
+seconda=c(dm$DC2,pred[,2])
+cluster=c(Cluster_clu_fmk,Cluster_clu_dmso)
+Condition=c(Condition_clu_fmk,Condition_clu_dmso)
+dati=data.frame(prima,seconda,cluster)
+
+diffu<-ggplot(dati, aes(x=prima , y=seconda , color= as.factor(cluster))) + geom_point()
+  
+diffu + scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winning Epiblast","Losing Epiblast 2", "Losing Epiblast 1"))+labs(x = "DC1",y="DC2") + ggtitle("Diffusion Map")+labs(col="Cluster")
+
+
+diffu<-ggplot(dati, aes(x=prima , y=seconda , color= as.factor(Condition))) + geom_point()
+  
+diffu<-ggplot(dati, aes(x=prima, y=seconda, color= Condition)) + geom_point()
+
+ #pdf("figure_paper_pdf/diffusion_map_epi_fmk_condition.pdf",width=8,height=5) 
+diffu + scale_color_manual(values=c("green 1", "yellow 1"))+labs(x = "DC1",y="DC2") + ggtitle("Diffusion Map")+labs(col="Condition")
+
+
+dpt <- DPT(dm)
+#save(dpt,file="dpt.Rda")
+#str(dpt)
+#tips(dpt)
+#plot(dpt)
+#plot(dpt,col=Cluster)
+#pdf("figure_paper_pdf/diffusion_map_all_epi_pseudo_time.pdf",width=8,height=5)
+
+plot(dpt, col_by = 'DPT119')
+
+time_only_fmk=dpt$DPT119
+projection_dist_ten=function (dm, new_dcs = NULL, ..., new_data, verbose = FALSE) 
+{
+    if (is.null(new_dcs)) 
+        new_dcs <- dm_predict(dm, new_data, ..., verbose = verbose)
+    else if (!missing(new_data)) 
+        stop("only pass one of new_dcs and new_data")
+    evs <- eigenvectors(dm)
+    nns <- find_knn(evs, 10, query = as.matrix(new_dcs))
+    nn_dist <- nns$index[, 1:10]
+    nn_dist
+}
+
+dist=projection_dist_ten(dm,new_dcs=pred)
+k10=matrix(0,ncol=10,nrow = length(cells_epi_dmso))
+for( i in 1:length(cells_epi_dmso)){
+k10[i,]=time_only_fmk[dist[i,]]
+#print(i)
+}
+time_projec=apply(k10,1,mean)
+
+
+
+
+
+
+
+dfForPlot <- data.frame(clusters = as.character(Cluster_clu_fmk)
+                                ,exp=time_only_fmk
+                                ,Cluster = as.factor(Cluster_clu_fmk))
+
+
+ggplot(data =dfForPlot
+                    ,aes(x = clusters
+                         ,y =  exp
+                         ,col = Cluster )) +
+                geom_boxplot(width=0.9,alpha=0.8) + 
+  
+  
+                scale_color_manual(breaks = c("1","3","4")
+                                   ,labels = c("Normal (winner) Epiblast"
+                                              
+                                              
+                                              
+                                              ,"Intermediate"
+                                              ,"Loser Epiblast "
+                                              
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("#DD6400","#0000FF","#006400" )) +
+                
+  ylab("Losing Score")+xlab(NULL) + 
+  geom_sina()+
+  ggtitle("Losing score FMK cells (274)")
+
+
+
+dfForPlot <- data.frame(clusters = as.character(Cluster_clu_dmso)
+                                ,exp=time_projec
+                                ,Cluster = as.factor(Cluster_clu_dmso))
+
+ggplot(data =dfForPlot
+                    ,aes(x = clusters
+                         ,y =  exp
+                         ,col = Cluster )) +
+                geom_boxplot(width=0.9,alpha=0.8) + 
+  
+  
+                scale_color_manual(breaks = c("1","3","4")
+                                   ,labels = c("Normal (winner) Epiblast"
+                                              
+                                              
+                                              
+                                              ,"Intermediate"
+                                              ,"Loser Epiblast "
+                                              
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("#DD6400","#0000FF","#006400" )) +
+                
+  ylab("Losing Score")+xlab(NULL) + 
+  geom_sina()+ylim(c(0,max(time_only_fmk)))+
+  ggtitle("Losing score DMSO cells (238)")
+
+
+
+
+```
+
+
+
+
+
+
+
+## Extended Figure 2 E
+
+```{r}
+cells_epi_fmk=row.names(classe)[(classe$cluster==1 & classe$condizione=="Cell competition OFF")|(classe$cluster==3 & classe$condizione=="Cell competition OFF")|(classe$cluster==4 & classe$condizione=="Cell competition OFF")]
+
+time_all_epi=time_all_epi[which(cells_epi%in%cells_epi_fmk)]
+
+time_fmk_epi_fmk_epiblasto=time_fmk_epi
+tempi=data.frame(time_all_epi,time_fmk_epi_fmk_epiblasto)
+
+ggplot(data =tempi
+                    ,aes(x = time_all_epi
+                         ,y =  time_fmk_epi_fmk_epiblasto
+                         )) +
+                geom_point()+
+xlab("pseudo-time FMK (from all epiblast)")+
+  ylab("pseudo-time FMK (from only FMK epiblast)")+ggtitle(paste("Spearman correlation :",round(cor(time_all_epi,time_fmk_epi_fmk_epiblasto, method = "spearman"),3),sep=" "))
+
+
+
+
+
+```
+
+
+
+
+
+## Figure 2F
+
+```{r,width=20}
+
+
+primo=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Klf4")]
+secondo=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Klf5")]
+terzo=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Fgf5")]
+quarto=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Zfp42")]
+quinto=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Tdgf1")]
+sesto=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Mesp1")]
+settimo=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="T")]
+ottavo=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Neurod1")]
+nono=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Sox1")]
+decimo=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Sox17")]
+quindici=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Gata6")]
+undici=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Sox2")]
+dodici=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Pou3f1")] 
+tredici=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Tcf7l1")]
+quattordici=nome_gene$Gene.stable.ID[which(nome_gene$Gene.name=="Pou5f1")]
+geni=c(primo,secondo,undici,dodici,tredici,quattordici,quarto,terzo,quinto,sesto,settimo,ottavo,nono,decimo,quindici)
+
+
+chosen.exprs_new_icb<-log10(data_tpm+1)[geni,cells_epi_fmk]
+#colnames(data_tpm)[order(time_all_tutto)]
+new_versione=t(chosen.exprs_new_icb)[order(time_fmk_epi),]
+chosen.exprs_new_icb=t(new_versione)
+row_nuove<-nome_gene[row.names(chosen.exprs_new_icb),2]
+#row.names(chosen.exprs_new_icb)<-row_nuove
+geni_naive<-paste(c("Klf4*","Klf5*"),"(Naive)",sep="")
+geni_epi<-paste(c("Fgf5*","Tdgf1*"),"(Epiblast)",sep="")
+#geni_ave<-paste(c("Hhex","Cer1","Lefty1"),"(AVE)",sep="")
+geni_meso=paste(c("Mesp1","T"),"(Mesoderm)",sep="")
+geni_neuro=paste(c("Neurod1*","Sox1"),"(Neuroderm)",sep="")
+geni_endo=paste(c("Sox17*","Gata6"),"(Endoderm)",sep="")
+geni_new=paste(c("Sox2","Pou3f1","Tcf7l1*","Pou5f1*","Rex1"),"(Naive)",sep="")
+
+
+
+
+row.names(chosen.exprs_new_icb)<-c(geni_naive,geni_new,geni_epi,geni_meso,geni_neuro,geni_endo)
+classe_fmk=meta_dati_course[cells_epi_fmk,]
+classe_sort=classe_fmk[order(time_fmk_epi),]
+new_clusters=classe_sort$cluster
+
+Condition_new=as.vector(classe_sort$condition)
+
+numero_clu=rep(0,length(new_clusters))
+numero_clu[new_clusters==1]="Normal (Winner) Epiblast"
+numero_clu[new_clusters==2]="Extraembryonic Ectoderm"
+numero_clu[new_clusters==3]="Intermediate"
+numero_clu[new_clusters==4]="Loser Epiblast"
+numero_clu[new_clusters==5]="Visceral Endoderm"
+numero_clu[new_clusters==6]="Losing "
+
+
+
+bo=data.frame(Condition = Condition_new,Cluster = numero_clu,
+                                          Pseudotime=sort(time_fmk_epi))
+
+haCol1 = HeatmapAnnotation(df = data.frame(Condition = Condition_new
+                                          ,Cluster = numero_clu,
+                                          Pseudotime=sort(time_fmk_epi))
+                               , col = list(Condition = c("Cell competition ON" = "yellow 1", "Cell competition OFF"="green 1"
+                                                      
+                                                     )
+                                           
+                                            
+                                            ,Cluster = c("Normal (Winner) Epiblast" = "#DD6400"
+                                                         ,"Extraembryonic Ectoderm" = "#800080"
+                                                         ,"Intermediate"= "#0000FF"
+                                                                ,"Loser Epiblast"="#006400"
+                                                         ,"Visceral Endoderm"="#56B4E9"
+                                                         ,"Losing "="#A9A9A9"
+                                                         
+                                                         )
+                                       ,Pseudotime=colorRamp2(c(0, round(max(time_fmk_epi))), c("white", "blue")))
+                               , show_legend = T
+            )
+
+
+
+#pdf("figure_paper_pdf/heatmap_pseudo_time_naive.pdf",width=8,height=5)
+
+
+
+
+ht21 = Heatmap(chosen.exprs_new_icb# heat.vals_Mutant_Paired #
+               ,cluster_rows = FALSE
+                  , col= colorRamp2(c(0, round(max(chosen.exprs_new_icb))), c("white", "red"))
+                  , name = "log 10 norm counts"
+                  #, column_title = "Absolute values"
+                  , cluster_columns = F
+,column_title = " Naive and primitive streak markers"
+                  #, cluster_rows =as.dendrogram(as.numeric(row.names(log_data_tpm)[1:10]) )
+                  , top_annotation = haCol1
+                  , row_names_gp = gpar(fontsize = 8
+                                       #,col = geneColors
+                   )
+                  , show_column_names = F
+                  , show_row_names = T
+                  )
+
+
+
+draw(ht21
+    #,column_title = "Absolute values", column_title_side = "top"
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+## Extended Figure 3 D
+```{r,height=20}
+singolo_correlazione=function(a,b,c,d){
+classe_prova=classe[grep(b,classe$Cell_type),]
+classe_los=classe_prova[grep(a,classe_prova$cluster),]
+exp_1_los=t((data_tpm))[rownames(classe_los),nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==c)]]
+exp_1_los=as.vector(exp_1_los)
+exp_1_los_1=t((data_tpm))[rownames(classe_los),nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==d)]]
+exp_1_los_1=as.vector(exp_1_los_1)
+dati=data.frame(exp_1_los,exp_1_los_1)
+p=ggplot(data=dati,aes(x=exp_1_los_1,y=exp_1_los))+geom_point(col="#006400")+xlab(d)+
+  ylab(c)+ggtitle(paste(c,"vs",d,"-spearman corr:",round(cor(exp_1_los_1, exp_1_los, method = "spearman"),3),sep=" "))
+p
+}
+
+singolo_correlazione("4","FMK","Klf4","Sox17")
+
+
+singolo_correlazione("4","FMK","Klf4","Neurod1")
+
+
+singolo_correlazione("4","FMK","Neurod1","Sox17")
+
+
+
+
+
+
+```
+
+
+### GAM Model for detecting DE genes along the pseudo time using only Cell Competition OFF epiblast cells
+
+```{r}
+
+row.names(classe)=good
+cellule_epi_fmk=row.names(classe)[(classe$cluster==1 & classe$condizione=="Cell competition OFF")|(classe$cluster==3 & classe$condizione=="Cell competition OFF")|(classe$cluster==4 & classe$condizione=="Cell competition OFF")]
+cellule_epi=row.names(classe)[(classe$cluster==1)|(classe$cluster==3) |(classe$cluster==4 )]
+
+data=data_tpm
+data=data[,cellule_epi_fmk]
+risultato=apply(data,1,function(x){sum(x>15)})
+indice=which(as.vector(risultato)>10)
+background_trajectory=row.names(data_tpm)[indice]
+
+data=data[indice,]
+data=log10(data+1)
+sce<-SingleCellExperiment(assays = list(counts = as.matrix(data)))
+sce$Pseudotime <- time_fmk_epi
+Y=counts(sce)
+#Y_1=Y[1:2,]
+t=sce$Pseudotime
+
+gam.res <- apply(Y, 1, function(z){
+    d <- data.frame(z=z, t=t)
+    tmp <- gam(z ~ lo(t), data=d)
+    p <- summary(tmp)[4][[1]][1,5]  #p-value parametric ANOVA
+    f<-fitted(tmp)
+    #p2 <- summary(tmp)[3][[1]][2,3]  #p-value non-parametric ANOVA
+    c(p,f)
+    #c(p1,p2)   #If we want to return both the parametric and non-parametric p-values
+})
+data_all=data
+
+
+#d <- data.frame(z=Y[1,], t=t)
+    #tmp <- gam(z ~ lo(t), data=d)
+    #p <- summary(tmp)[4][[1]][1,5]  #p-value parametric ANOVA
+    #f<-fitted(tmp)
+
+```
+
+
+### Keeping only the genes which vary in a significant way along the pseudo time
+```{r }
+genes.table<-data.frame(genes.names=rownames(data))
+genes.table$pvals<-gam.res[1,]
+genes.table$FDR<-p.adjust(genes.table$pvals, method="fdr") #Adjust p-values
+genes.table<-genes.table[order(genes.table$FDR),] #Order the genes according to the FDR
+genes.table$genes.names <- as.character(genes.table$genes.names)
+
+#Note that we are using a very strict threshold on FDR! Otherwise we obtain a very large number
+#of genes
+results.gam.tot<-genes.table[genes.table$FDR < 0.01,][c('genes.names','FDR')] #Filter the significant genes
+
+#Save the matrix of fitted values
+gam.fitted<-gam.res[-1,]
+
+
+print(paste("We have"
+           ,sum(genes.table$FDR < 0.01)
+           ,"significant genes"))
+
+
+#results_gam=results.gam.tot['genes.names']
+results_gam_nomi=results.gam.tot$genes.names
+gam_fitted=gam.fitted
+
+
+```
+
+```{r }
+
+data=data[results_gam_nomi,]
+
+data=t(data)
+data_100_sort=data
+
+```
+
+### Hierarchical cluster analysis for detecting genes who behave in a similar way along the trajectory
+```{r }
+
+chosen.exprs1<-as.matrix(data_100_sort)
+dissimilarity <- sqrt((1-cor((chosen.exprs1), method = "spearman"))/2)
+
+#Umap by medium
+my.dist <- as.dist(dissimilarity) 
+set.seed(100)
+#object<-umap(d=as.matrix(my.dist),input="dist")
+#save(object,file="object_novembre.Rda")
+
+object<-umap(d=as.matrix(my.dist),input="dist")
+umap_met<-as.data.frame(object$layout)
+#umap_met
+
+
+my.tree <- hclust(my.dist
+                  , method="ward.D2" # met = "ward.D2" was adopted form the reference
+                  )
+# Cut the treee to identify clusters
+#save(my.tree,file="my_tree_novembre.Rda")
+my.clusters <- cutreeHybrid(my.tree
+                            ,distM=as.matrix(my.dist),deepSplit=0
+                            ,minClusterSize = 100)$label#5)$label
+#save(my.clusters,file="my_clusters_novembre.Rda")
+#length(unique(my.clusters))
+#classe<-data.frame(Cell_type = meta_dati_no$Sample
+                                          #,cluster = my.clusters)
+
+#classe$condizione=Condition 
+#table(classe$cluster,classe$condizione)
+Cluster=as.factor(my.clusters)
+sp<-ggplot(as.data.frame(object$layout),aes(umap_met[,1],umap_met[,2],color=Cluster)) + geom_point()+xlab("Umap 1")+ylab("Umap 2")+ ggtitle("Cluster on top (FDR<0.01)  varying genes along pseudotime")
+
+sp
+```
+
+
+
+
+
+### Identification of DE genes (up= increasing along the trajectory, down= decreasing along the trajectory)
+```{r }
+classe_geni=data.frame(colnames(data_100_sort),my.clusters)
+
+colnames(classe_geni)=c("geni","clusters")
+row.names(classe_geni)=classe_geni$geni
+
+geni_1=nome_gene[(classe_geni[classe_geni$clusters==1,]$geni),2]
+geni_2=nome_gene[(classe_geni[classe_geni$clusters==2,]$geni),2]
+geni_3=nome_gene[(classe_geni[classe_geni$clusters==3,]$geni),2]
+geni_4=nome_gene[(classe_geni[classe_geni$clusters==4,]$geni),2]
+
+
+id_1=as.vector(classe_geni$geni[classe_geni$clusters==1])
+id_2=as.vector(classe_geni$geni[classe_geni$clusters==2])
+id_3=as.vector(classe_geni$geni[classe_geni$clusters==3])
+id_4=as.vector(classe_geni$geni[classe_geni$clusters==4])
+
+id_down_loser=c(id_1,id_2,id_4)
+id_up_loser=c(id_3)
+
+row.names(results.gam.tot)=results.gam.tot$genes.names
+id_1_full=results.gam.tot[id_1,]
+id_1_full$Cluster=classe_geni[id_1,]$clusters
+id_2_full=results.gam.tot[id_2,]
+id_2_full$Cluster=classe_geni[id_2,]$clusters
+id_3_full=results.gam.tot[id_3,]
+id_3_full$Cluster=classe_geni[id_3,]$clusters
+id_4_full=results.gam.tot[id_4,]
+id_4_full$Cluster=classe_geni[id_4,]$clusters
+id_down_full=results.gam.tot[id_down_loser,]
+id_down_full$Cluster=classe_geni[id_down_loser,]$clusters
+
+id_down_full_sort=id_down_full[order(id_down_full$FDR),]
+id_down_full_sort$Cluster=classe_geni[row.names(id_down_full_sort),]$clusters
+```
+
+
+## Extended Figure 3 A
+
+
+```{r}
+row.names(classe)=good
+cellule_epi_fmk=row.names(classe)[(classe$cluster==1 & classe$condizione=="Cell competition OFF")|(classe$cluster==3 & classe$condizione=="Cell competition OFF")|(classe$cluster==4 & classe$condizione=="Cell competition OFF")]
+
+geni_up=results_gam_nomi[results_gam_nomi%in%id_up_loser]
+geni_down=results_gam_nomi[results_gam_nomi%in%id_down_loser]
+geni=c(geni_up,geni_down)
+geni_colore=rep(0,length(geni))
+geni_colore[1:length(geni_up)]="Increasing"
+geni_colore[(length(geni_up)+1):length(geni)]="Decreasing"
+DE_genes=geni_colore
+
+chosen.exprs_new_icb<-log10(data_tpm+1)[geni,cellule_epi_fmk]
+
+new_versione=t(chosen.exprs_new_icb)[order(time_fmk_epi),]
+chosen.exprs_new_icb=t(new_versione)
+row_nuove<-nome_gene[row.names(chosen.exprs_new_icb),2]
+
+
+geni_nomi=nome_gene[geni,]$Gene.name
+
+
+
+row.names(chosen.exprs_new_icb)<-geni_nomi
+row.names(classe)=good
+classe_fmk=classe[cellule_epi_fmk,]
+classe_sort=classe_fmk[order(time_fmk_epi),]
+new_clusters=classe_sort$cluster
+
+Condition_new=classe_sort$condizione
+
+numero_clu=rep(0,length(new_clusters))
+numero_clu[new_clusters==1]="Normal (Winner) Epiblast"
+numero_clu[new_clusters==2]="Extraembryonic Ectoderm"
+numero_clu[new_clusters==3]="Intermediate"
+numero_clu[new_clusters==4]="Loser Epiblast"
+numero_clu[new_clusters==5]="Visceral Endoderm"
+numero_clu[new_clusters==6]="Losing "
+
+haCol1 = HeatmapAnnotation(df = data.frame(
+                                          Cluster = numero_clu,
+                                          Condition = Condition_new,
+                                          Pseudotime=sort(time_fmk_epi))
+                               , col = list(Condition = c("Cell competition ON" = "yellow 1", "Cell competition OFF"="green 1"
+                                                      
+                                                     )
+                                           
+                                            
+                                            ,Cluster = c("Normal (Winner) Epiblast" = "#DD6400"
+                                                         ,"Extraembryonic Ectoderm" = "#800080"
+                                                         ,"Intermediate"= "#0000FF"
+                                                                ,"Loser Epiblast"="#006400"
+                                                         ,"Visceral Endoderm"="#56B4E9"
+                                                         ,"Losing "="#A9A9A9"
+                                                         
+                                                         )
+                                       ,Pseudotime=colorRamp2(c(0, round(max(time_fmk_epi))), c("white", "blue")))
+                               , show_legend = T,which = c("column")
+            )
+
+
+left_annotation=HeatmapAnnotation(df = data.frame(
+                                          DE_genes=DE_genes)
+                               , col = list(DE_genes = c("Increasing" = "black", "Decreasing"="grey")
+                                                      
+                                                     )
+                                           
+                                            
+                                            
+                               , show_legend = T,which = c("row")
+            )
+
+
+
+
+
+
+
+
+ht21 = Heatmap(chosen.exprs_new_icb# heat.vals_Mutant_Paired #
+               ,cluster_rows = FALSE
+                  , col= colorRamp2(c(0,round(max(chosen.exprs_new_icb))), c("blue","red"))
+                  , name = "log 10 norm counts"
+                  #, column_title = "Absolute values"
+                  , cluster_columns = F
+,column_title = "Diff expressed genes"
+                  #, cluster_rows =as.dendrogram(as.numeric(row.names(log_data_tpm)[1:10]) )
+                  , top_annotation = haCol1
+                  , row_names_gp = gpar(fontsize = 8
+                                       #,col = geneColors
+                   )
+                  , show_column_names = F
+                  , show_row_names = F
+         ,left_annotation = left_annotation  )
+
+
+draw(ht21
+    #,column_title = "Absolute values", column_title_side = "top"
+)
+
+
+
+
+
+
+
+```
+
+
+
+## Extended Figure 3 B and C
+
+```{r}
+
+up_loser_1_4=data.frame(id_up_loser)
+down_loser_1_4=data.frame(id_down_loser)
+row.names(up_loser_1_4)=id_up_loser
+row.names(down_loser_1_4)=id_down_loser
+
+
+
+
+
+target_up=data_p53$Ensembl.ID[grep("up",data_p53$Literature..Table.S1.)]
+target_down=data_p53$Ensembl.ID[grep("down",data_p53$Literature..Table.S1.)]
+#write.csv2(target_up,file="target_up_p53.csv")
+#write.csv2(target_down,file="target_down_p53.csv")
+#ho generato i seguenti due file con g profiler
+#up_p53_mouse=read.csv("up_p53_topo.csv",sep=",",header=T)
+#down_p53_mouse=read.csv("down_p53_topo.csv",sep=",",header=T)
+#test up
+test=up_p53_mouse$initial_ensg
+
+test= !(duplicated(test) | duplicated(test, fromLast = TRUE)) # correct result
+
+up_p53=up_p53_mouse$ortholog_ensg[test]
+
+up_p53=up_p53[up_p53%in%row.names(down_loser_1_4)|up_p53%in%row.names(up_loser_1_4)]
+
+sum(up_p53%in%row.names(up_loser_1_4))/(length(up_p53))
+sum(up_p53%in%row.names(down_loser_1_4))/(length(up_p53))
+#test down
+test=down_p53_mouse$initial_ensg
+
+test= !(duplicated(test) | duplicated(test, fromLast = TRUE)) # correct result
+
+down_p53=down_p53_mouse$ortholog_ensg[test]
+
+down_p53=down_p53[down_p53%in%row.names(down_loser_1_4)|down_p53%in%row.names(up_loser_1_4)]
+
+sum(down_p53%in%row.names(up_loser_1_4))/(length(down_p53))
+sum(down_p53%in%row.names(down_loser_1_4))/(length(down_p53))
+
+tot_p53=c(up_p53,down_p53)
+
+
+matrice=matrix(c(sum(up_p53%in%row.names(up_loser_1_4)),length(up_p53)-sum(up_p53%in%row.names(up_loser_1_4)),sum(down_p53%in%row.names(up_loser_1_4)),sum(down_p53%in%row.names(down_loser_1_4))),nrow=2,ncol=2,byrow=T)
+#Fisher test
+fisher.test(matrice)
+
+matrice_1=matrix(c(sum(down_p53%in%row.names(down_loser_1_4)),length(down_p53)-sum(down_p53%in%row.names(down_loser_1_4)),sum(up_p53%in%row.names(down_loser_1_4)),sum(up_p53%in%row.names(up_loser_1_4))),nrow=2,ncol=2,byrow=T)
+
+fisher.test(matrice_1)
+
+a=rep("Up genes (45)",1)
+b=rep("Down genes (35)",1)
+aa=sum(up_p53%in%row.names(up_loser_1_4))
+bb=sum(up_p53%in%row.names(down_loser_1_4))
+value=c(aa,bb)
+group=c(a,b)
+df=data.frame(group,value)
+library(ggplot2)
+bp<- ggplot(df, aes(x="", y=value, fill=group))+
+  geom_bar(width = 1, stat = "identity")
+#bp
+
+
+pie <- bp + coord_polar("y", start=0)
+#pie
+library(scales)
+
+blank_theme <- theme_minimal()+
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_blank(),
+    panel.grid=element_blank(),
+    axis.ticks = element_blank(),
+    plot.title=element_text(size=14, face="bold")
+  )
+
+pie +  blank_theme +
+  theme(axis.text.x=element_blank()) +
+  geom_text(aes(y=c(6,60),
+                label = percent(value/80)), size=5)+ggtitle("Targets activated by P53")
+
+
+a=rep("Up genes (8)",1)
+b=rep("Down genes (33)",1)
+aa=sum(down_p53%in%row.names(up_loser_1_4))
+bb=sum(down_p53%in%row.names(down_loser_1_4))
+value=c(aa,bb)
+group=c(a,b)
+df=data.frame(group,value)
+library(ggplot2)
+bp<- ggplot(df, aes(x="", y=value, fill=group))+
+  geom_bar(width = 1, stat = "identity")
+#bp
+
+
+pie <- bp + coord_polar("y", start=0)
+#pie
+library(scales)
+
+blank_theme <- theme_minimal()+
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_blank(),
+    panel.grid=element_blank(),
+    axis.ticks = element_blank(),
+    plot.title=element_text(size=14, face="bold")
+  )
+
+pie +  blank_theme +
+  theme(axis.text.x=element_blank()) +
+  geom_text(aes(y=c(4,30),
+                label = percent(value/41)), size=5)+ggtitle("Targets repressed by P53")
+
+
+```
+
+
+```{r }
+
+
+
+gene_expression <- function(a,b){
+  #row.names(clas_new_new)=good
+ 
+  geni_up_loser=row.names(classe_geni)[classe_geni$clusters==3]
+geni_down_loser=row.names(classe_geni)[classe_geni$clusters==1|classe_geni$clusters==2|classe_geni$clusters==4]
+
+  classe_new=classe[classe$cluster==1|classe$cluster==3|classe$cluster==4,]
+clas_new_new=classe_new
+clas_new_new=clas_new_new[grep("FMK",classe_new$Cell_type),]
+classe=clas_new_new
+
+  
+  exp_real=t(log10(data_tpm+1))[rownames(classe),nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]]
+  #exp_fitted=gam.fitted[rownames(classe),which(colnames(gam.fitted)==nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)])]
+  #exp=c(exp_real)
+pseudo_time_real=time_fmk_epi
+#pseudo_time_fit=time_all
+#type=c(rep("real expression",length(exp_real)),rep("fitted value",length(exp_real)))
+#time_all_all=c(pseudo_time_real,pseudo_time_fit)
+dfForPlot <- data.frame(pseudo_time = pseudo_time_real
+                                ,genes_expression=exp_real
+                        
+)
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%geni_up_loser)>0){
+  titolo=paste(a,"up_loser",b,sep=" ")
+}
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%geni_down_loser)>0){
+  titolo=paste(a,"down_loser",b,sep=" ")
+}
+
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%colnames(gam.fitted))==0){titolo=paste(a,"no in the background",b,sep=" ")}
+if(sum((nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%colnames(gam.fitted)>0)&(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%row.names(classe_geni)==0))){titolo=paste(a,"no up/down",b,sep=" ")}
+
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%colnames(gam.fitted))==0){titolo=paste(a,"no in the background",b,sep=" ")}
+
+p <- ggplot(data =dfForPlot
+                    ,aes(x = pseudo_time
+                         ,y =  genes_expression
+                         
+                          )) +
+                 geom_point()+xlab("pseudotime")+ylab("log 10 norm counts")+
+  ggtitle(titolo)+geom_smooth(method = "loess", se = F,col="red") 
+  
+  
+p}
+
+```
+
+
+## Figure 3 C and Extended Figure 4 D
+```{r }
+
+p_12=gene_expression("mt-Atp6"," ")
+p_13=gene_expression("mt-Nd3"," ")
+p_14=gene_expression("Opa1"," ")
+p_15=gene_expression("Samm50"," ")
+#pdf("figure_paper_pdf/pseudo_time_elctron.pdf",width=8,height=5)
+
+grid.arrange(p_12,p_13,top=textGrob("Electron Transport chain",gp=gpar(fontsize=15)),ncol=1,nrow=2)
+
+grid.arrange(p_14,p_15,top=textGrob("Mitochondria Membrane",gp=gpar(fontsize=15)),ncol=1,nrow=2)
+
+p_12=gene_expression("Atf4"," ")
+p_13=gene_expression("Ddit3"," ")
+p_14=gene_expression("Foxo3"," ")
+p_15=gene_expression("Nfe2l2"," ")
+p_16=gene_expression("Sesn2"," ")
+
+grid.arrange(p_14,p_15,ncol=1,nrow=2)
+
+
+grid.arrange(p_12,p_13,ncol=1,nrow=2)
+
+
+grid.arrange(p_16,ncol=1,nrow=1)
+
+
+
+
+
+
+
+```
+
+```{r }
+gene_expression <- function(a,b){
+  #row.names(clas_new_new)=good
+ 
+  geni_up_loser=row.names(classe_geni)[classe_geni$clusters==3]
+geni_down_loser=row.names(classe_geni)[classe_geni$clusters==1|classe_geni$clusters==2|classe_geni$clusters==4]
+
+  classe_new=classe[classe$cluster==1|classe$cluster==3|classe$cluster==4,]
+clas_new_new=classe_new
+clas_new_new=clas_new_new[grep("FMK",classe_new$Cell_type),]
+classe=clas_new_new
+cluster_plot=classe[,2]
+cluster_plot[cluster_plot==1]="Winner Epiblast"
+cluster_plot[cluster_plot==3]="Intermediate"
+cluster_plot[cluster_plot==4]="Loser Epiblast"
+cluster_plot=factor(cluster_plot,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"))
+  
+  exp_real=t(log10(data_tpm+1))[rownames(classe),nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]]
+  #exp_fitted=gam.fitted[rownames(classe),which(colnames(gam.fitted)==nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)])]
+  #exp=c(exp_real)
+pseudo_time_real=time_fmk_epi
+#pseudo_time_fit=time_all
+#type=c(rep("real expression",length(exp_real)),rep("fitted value",length(exp_real)))
+#time_all_all=c(pseudo_time_real,pseudo_time_fit)
+dfForPlot <- data.frame(pseudo_time = pseudo_time_real
+                                ,genes_expression=exp_real
+                        ,cluster=cluster_plot
+                        
+)
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%geni_up_loser)>0){
+  titolo=paste(a,"up_loser",b,sep=" ")
+}
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%geni_down_loser)>0){
+  titolo=paste(a,"down_loser",b,sep=" ")
+}
+
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%colnames(gam.fitted))==0){titolo=paste(a,"no in the background",b,sep=" ")}
+if(sum((nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%colnames(gam.fitted)>0)&(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%row.names(classe_geni)==0))){titolo=paste(a,"no up/down",b,sep=" ")}
+
+if(sum(nome_gene$Gene.stable.ID[which(nome_gene$Gene.name==a)]%in%colnames(gam.fitted))==0){titolo=paste(a,"no in the background",b,sep=" ")}
+
+p <- ggplot(data =dfForPlot
+                    ,aes(x = pseudo_time
+                         ,y =  genes_expression
+                         ,color=(cluster_plot)
+                          )) +
+                 geom_point()+xlab("pseudotime")+ylab("log 10 norm counts")+
+  ggtitle(titolo)+geom_smooth(method = "loess", se = F,col="red") +scale_color_manual(values=c("#DD6400", "#0000FF", "#006400"))+labs(col="Cluster")
+  
+p <- ggplot(data =dfForPlot
+                    ,aes(x = cluster_plot
+                         ,y =  genes_expression
+                         ,colour=(cluster_plot)
+                          )) +
+                 geom_boxplot()+xlab("Cluster")+ylab("log 10 norm counts")+
+  ggtitle(titolo) +scale_colour_manual(values=c("#DD6400", "#0000FF", "#006400"))+labs(colour="Cluster")
+  
+  
+list(p,q)}
+
+#("Normal (Winner) Epiblast" = "#DD6400"
+                                                        # ,"Extraembryonic Ectoderm" = "#800080"
+                                                         #,"Intermediate"= "#0000FF"
+                                                            #    ,"Loser Epiblast"="#006400"
+                                                        # ,"Visceral Endoderm"="#56B4E9"
+                                                        # ,"Losing "="#A9A9A9"
+                                                         
+
+```
+
+
+
+
+
+```{r }
+#gene_expression("Tfb1m"," ")
+```
+
+
+
+
+```{r }
+#setwd("/Users/gabriele.lubatti/Desktop")
+#geni_upr=read.csv2("ana_upr.csv",header=F)
+geni_upr=as.vector(geni_upr$V1)
+
+geni_down=nome_gene[id_down_loser,]$Gene.name
+geni_up=nome_gene[id_up_loser,]$Gene.name
+
+geni_upr[which(!(geni_upr%in%nome_gene$Gene.name))]="Foxo3"
+```
+
+
+## Extended Figure 4 A
+```{r}
+library(UpSetR)
+up=geni_up
+down=geni_down
+upr=geni_upr
+
+listInput <- list(up_loser = up, down_loser =down,UPR_ISR = upr) 
+upset(fromList(listInput), order.by = "freq")
+
+
+
+```
+
+
+
+```{r}
+back_nomi=nome_gene[background_trajectory,]$Gene.name
+```
+
+
+## Extended Figure 4 B and C
+
+```{r}
+
+
+
+
+geni_up=nome_gene[row.names(id_3_full),]$Gene.name
+id_3_full$nomi=geni_up
+
+geni_up_com=geni_up[which(geni_up%in%geni_upr)]
+index_up_com=which(geni_up%in%geni_upr)
+fdr_up_com=id_3_full[which(geni_up%in%geni_upr),]$FDR
+up_com_1=data.frame(geni_up_com,fdr_up_com,index_up_com)
+
+up_com_1
+
+
+
+
+geni_down=nome_gene[row.names(id_down_full_sort),]$Gene.name
+id_down_full_sort=id_down_full_sort[,-1]
+id_down_full_sort$nomi=geni_down
+
+geni_down_com=geni_down[which(geni_down%in%geni_upr)]
+index_down_com=which(geni_down%in%geni_upr)
+fdr_down_com=id_down_full_sort[which(geni_down%in%geni_upr),]$FDR
+down_com_1=data.frame(geni_down_com,fdr_down_com,index_down_com)
+
+
+down_com_1
+
+
+
+```
+
+
+```{r}
+back=background_trajectory
+#versione corretta con geni id 
+id_geni_upr=nome_gene$Gene.stable.ID[nome_gene$Gene.name%in%geni_upr]
+
+
+#arricchimento per up
+
+matrice=matrix(c(sum(id_up_loser%in%id_geni_upr),sum(!id_up_loser%in%id_geni_upr),sum(back[!(back%in%id_up_loser)]%in%id_geni_upr),sum(!(back[!(back%in%id_up_loser)]%in%id_geni_upr))),nrow=2,ncol=2,byrow = T)
+fisher.test(matrice)
+#arricchimento per down
+matrice=matrix(c(sum(id_down_loser%in%id_geni_upr),sum(!(id_down_loser%in%id_geni_upr)),sum(back[!(back%in%id_down_loser)]%in%id_geni_upr),sum(!(back[!(back%in%id_down_loser)]%in%id_geni_upr))),nrow=2,ncol=2,byrow = T)
+fisher.test(matrice)
+
+```
+
+
+```{r }
+
+setwd(base_path)
+raw_dati=read.table("GeneCounts.csv",sep=",",header=T)
+row.names(raw_dati)=raw_dati$X
+raw_dati=raw_dati[,-1]
+colnames(raw_dati)[9]="P2A4HB_GFP_CO_1"
+colnames(raw_dati)[10]="P2A4HB_GFP_CO_2"
+
+
+#INIZIO ARRAY EXPRESS
+setwd(base_path)
+meta_data=read.table("metadata_ana_new.csv",sep=";",header=F)
+nuovo=as.vector(meta_data$V5)
+nuovo[meta_data$V5=="Separate"]="Sep"
+nuovo[meta_data$V5=="Co-culture"]="CO"
+meta_data$V5=nuovo
+nomi_colonne=paste(meta_data$V4,meta_data$V5,meta_data$V6,sep="_")
+
+nomi_colonne[which(!nomi_colonne%in%colnames(raw_dati))]=c("P2A4HB_GFP_Sep_1", "P2A4HB_GFP_CO_1", "P2A4HB_GFP_Sep_2", "P2A4HB_GFP_CO_2","P2A4HB_GFP_Sep_3", "P2A4HB_GFP_CO_3",  "P2A4HB_GFP_Sep_4", "P2A4HB_GFP_CO_4" )
+
+nuovi_dati=raw_dati[,nomi_colonne]
+colnames(nuovi_dati)=as.vector(meta_data$V3)
+
+
+
+
+
+
+```
+```{r }
+De_edger=function(Treat,Data){
+Treat=relevel(Treat, ref="Win_Epi")
+y=DGEList(counts=Data, group=Treat)
+keep <- filterByExpr(y)
+tutto=keep
+table(keep)
+y=y[keep, , keep.lib.sizes=FALSE]
+y=calcNormFactors(y)
+#y$samples
+design <- model.matrix(~Treat)
+rownames(design) <- colnames(y)
+#design
+y=estimateDisp(y, design, robust=TRUE)
+#y$common.dispersion
+fit=glmQLFit(y, design, robust=TRUE)
+#qlf=glmQLFTest(fit, coef=1:5)
+#qlf=glmLRT(fit)
+#topTags(qlf)
+#FDR= p.adjust(qlf$table$PValue, method="BH")
+#qlf$table<-cbind(qlf$table,FDR)
+#sum(FDR < 0.05)
+qlf=glmQLFTest(fit)
+FDR= p.adjust(qlf$table$PValue, method="BH")
+qlf$table<-cbind(qlf$table,FDR)
+sum(FDR < 0.05)
+topTags(qlf)
+summary(decideTests(qlf))
+#plotMD(qlf)
+#abline(h=c(-1,1), col="blue")
+tr_new<-qlf$table[row.names(qlf$table)[qlf$table$FDR<0.001 & !is.na(qlf$table$FDR)],]
+#return(list(tr_new))
+#}
+
+tr_export_down<-tr_new[row.names(tr_new)[tr_new$logFC<0],]
+
+tr_down<-tr_export_down[order(tr_export_down$FDR),]
+tr_down_1_4_new<-tr_down
+
+tr_export_up<-tr_new[row.names(tr_new)[tr_new$logFC>0],]
+tr_up<-tr_export_up[order(tr_export_up$FDR),]
+tr_up_1_4_new<-tr_up
+name_up=nome_gene[row.names(tr_up_1_4_new),2]
+tr_up_1_4_new$name=name_up
+
+name_down=nome_gene[row.names(tr_down_1_4_new),2]
+tr_down_1_4_new$name=name_down
+return(list(tr_up_1_4_new,tr_down_1_4_new,tutto))
+}
+```
+
+```{r }
+#prima funzione
+colnames(raw_dati)[9]="P2A4HB_GFP_CO_1"
+colnames(raw_dati)[10]="P2A4HB_GFP_CO_2"
+winner=colnames(raw_dati)[grep("P2A4HB_GFP_CO",colnames(raw_dati))]
+loser=colnames(raw_dati)[grep("P1A3BG_CO",colnames(raw_dati))]
+cel=c(winner,loser)
+data_de=raw_dati[,cel]
+tre_1=(rep("Win_Epi",length(winner)))
+tre_2=(rep("Los_Epi",length(loser)))
+Treat=c(tre_1,tre_2)
+Treat=as.factor(Treat)
+#Time=as.vector((classe[cel,]$Cell_type))
+#Time=as.factor(Time)
+Output_De=De_edger(Treat,data_de)
+up_1_4=Output_De[[1]]
+down_1_4=Output_De[[2]]
+tutto=Output_De[[3]]
+background_all=row.names(raw_dati)[tutto]
+
+
+#id_down_loser
+#id_up_loser
+
+
+
+back_all=intersect(background_trajectory,background_all)
+
+
+```
+
+## Extended Figure 10 B
+```{r }
+library(UpSetR)
+up_1_3_n=id_up_loser
+down_1_3_n=id_down_loser
+up_1_4_n=row.names(up_1_4)
+down_1_4_n=row.names(down_1_4)
+listInput <- list(up_vivo = up_1_3_n, down_vivo =down_1_3_n, up_vitro = up_1_4_n,down_vitro=down_1_4_n) 
+upset(fromList(listInput), order.by = "freq")
+
+```
+
+```{r }
+down_1_4=down_1_4[intersect(row.names(down_1_4),back_all),]
+up_1_4=up_1_4[intersect(row.names(up_1_4),back_all),]
+id_up_loser=intersect(id_up_loser,back_all)
+id_down_loser=intersect(id_down_loser,back_all)
+
+```
+
+
+```{r }
+#arrichimento per down
+matrice=matrix(c(sum(row.names(down_1_4)%in%id_down_loser),sum(row.names(down_1_4)%in%back_all)-sum(row.names(down_1_4)%in%id_down_loser),sum(id_down_loser%in%back_all)-sum(row.names(down_1_4)%in%id_down_loser),sum(!(back_all%in%row.names(down_1_4))&!(back_all%in%id_down_loser))),nrow=2,ncol=2,byrow = T)
+#Fisher test
+fisher.test(matrice)
+
+#arrichimento per up
+matrice=matrix(c(sum(row.names(up_1_4)%in%id_up_loser),sum(row.names(up_1_4)%in%back_all)-sum(row.names(up_1_4)%in%id_up_loser),sum(id_up_loser%in%back_all)-sum(row.names(up_1_4)%in%id_up_loser),sum(!(back_all%in%row.names(up_1_4))&!(back_all%in%id_up_loser))),nrow=2,ncol=2,byrow = T)
+#Fisher test
+fisher.test(matrice)
+
+#arrichimento per up e down
+matrice=matrix(c(sum(row.names(up_1_4)%in%id_down_loser),sum(row.names(up_1_4)%in%back_all)-sum(row.names(up_1_4)%in%id_down_loser),sum(id_down_loser%in%back_all)-sum(row.names(up_1_4)%in%id_down_loser),sum(!(back_all%in%row.names(up_1_4))&!(back_all%in%id_down_loser))),nrow=2,ncol=2,byrow = T)
+#Fisher test
+fisher.test(matrice)
+
+#arrichimmento per down e up
+matrice=matrix(c(sum(row.names(down_1_4)%in%id_up_loser),sum(row.names(down_1_4)%in%back_all)-sum(row.names(down_1_4)%in%id_up_loser),sum(id_up_loser%in%back_all)-sum(row.names(down_1_4)%in%id_up_loser),sum(!(back_all%in%row.names(down_1_4))&!(back_all%in%id_up_loser))),nrow=2,ncol=2,byrow = T)
+#Fisher test
+fisher.test(matrice)
+```
+
+```{r}
+#di seguito c'e' un esempio copiato da notebook vecchio
+#gene ontology analysis
+setwd(base_path)
+ward_down_no=read.csv("down_ana_last_version.csv")
+#go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
+#up_34_function=as.vector(go_up_34_function$term_name)
+#go_up_34_process=go_up_34[go_up_34$source=="GO:BP",]
+#up_34_process=as.vector(go_up_34_process$term_name)
+
+ward_down_component=ward_down_no[ward_down_no$source=="WP",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_function=down_output_no#tabella da vedere
+
+ward_down_component=ward_down_no[ward_down_no$source=="KEGG",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_process=down_output_no#tabella da vedere
+
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:CC",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+down_vitro_component=down_output_no
+
+
+
+```
+```{r}
+#di seguito c'e' un esempio copiato da notebook vecchio
+#gene ontology analysis
+setwd(base_path)
+ward_down_no=read.csv("up_ana_last_version.csv")
+#go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
+#up_34_function=as.vector(go_up_34_function$term_name)
+#go_up_34_process=go_up_34[go_up_34$source=="GO:BP",]
+#up_34_process=as.vector(go_up_34_process$term_name)
+
+ward_down_component=ward_down_no[ward_down_no$source=="TF",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_function=down_output_no#tabella da vedere
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:BP",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_process=down_output_no#tabella da vedere
+
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:CC",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+up_vitro_component=down_output_no
+
+
+
+```
+```{r}
+#di seguito c'e' un esempio copiato da notebook vecchio
+#gene ontology analysis
+setwd(base_path)
+ward_down_no=read.csv("down_vivo_last_version.csv")
+#go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
+#up_34_function=as.vector(go_up_34_function$term_name)
+#go_up_34_process=go_up_34[go_up_34$source=="GO:BP",]
+#up_34_process=as.vector(go_up_34_process$term_name)
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:MF",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_function=down_output_no#tabella da vedere
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:BP",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_process=down_output_no#tabella da vedere
+
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:CC",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+down_vivo_component=down_output_no
+
+
+
+```
+```{r}
+#di seguito c'e' un esempio copiato da notebook vecchio
+#gene ontology analysis
+setwd(base_path)
+ward_down_no=read.csv("up_vivo_last_version.csv")
+#go_up_34_function=go_up_34[go_up_34$source=="GO:MF",]
+#up_34_function=as.vector(go_up_34_function$term_name)
+#go_up_34_process=go_up_34[go_up_34$source=="GO:BP",]
+#up_34_process=as.vector(go_up_34_process$term_name)
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:MF",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_function=down_output_no#tabella da vedere
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:BP",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+
+down_cluster_all_process=down_output_no#tabella da vedere
+
+
+ward_down_component=ward_down_no[ward_down_no$source=="GO:CC",]
+down_component_no=as.vector(ward_down_component$term_name)
+down_pvalue_no=as.vector(ward_down_component$adjusted_p_value)
+down_output_no=data.frame(down_component_no,down_pvalue_no)
+up_vivo_component=down_output_no
+
+
+
+```
+## Extended Figure 10 C
+```{r }
+library(UpSetR)
+down_vivo_component=down_vivo_component$down_component_no
+up_vivo_component=up_vivo_component$down_component_no
+down_vitro_component=down_vitro_component$down_component_no
+up_vitro_component=up_vitro_component$down_component_no
+
+listInput <- list(up_vitro_component = up_vitro_component, down_vitro_component =down_vitro_component, up_vivo_component = up_vivo_component,down_vivo_component=down_vivo_component)
+
+upset(fromList(listInput), order.by = "freq")
+
+
+```
+
+
+
+
+
+```{r}
+
+setwd("/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/Cell_Competition_Github/SC_RNA_Seq_published_dataset/Cheng_et_al_2019")
+#bo=read.csv("GSE109071_series_matrix.txt",sep="\t",header = F)
+
+
+meta_dati_1=read.csv("SraRunTable.txt.csv")
+meta_dati=read.table("sample.tsv",sep="\t",header=T)
+dati_raw=read.table("GSE109071_read.txt")
+age=meta_dati_1$Age
+age=(as.vector(age))
+age_new=age[age=="embryonic day 6.5"|age=="embryonic day 5.5" |age=="embryonic day 6.25"]
+
+index=age=="embryonic day 6.5"|age=="embryonic day 5.5" |age=="embryonic day 6.25"
+
+sample=meta_dati_1$Sample.Name
+sample=as.vector(sample)
+
+
+accession=meta_dati$Accession
+
+nome=as.vector(meta_dati$Title)
+
+
+nome=substring(nome,19,nchar(nome))
+
+provo_1=data.frame(accession,nome)
+row.names(provo_1)=accession
+provo_2=provo_1[sample,]
+provo_3=provo_2
+
+
+dati_raw_1=t(dati_raw)
+dati_raw_2=dati_raw_1[as.vector(provo_3$nome)[as.vector(provo_3$nome)%in%colnames(dati_raw)],]
+dati_raw_3=t(dati_raw_2)
+
+
+nome_3=nome_gene$Gene.name[nome_gene$Gene.name%in%row.names(dati_raw_3)]
+index_3=nome_gene$Gene.stable.ID[nome_gene$Gene.name%in%row.names(dati_raw_3)]
+dati_raw_4=dati_raw_3[nome_3,]
+row.names(dati_raw_4)=index_3
+
+nome_index=as.vector(provo_3$nome[index])
+
+dati_raw_5=dati_raw_4[,nome_index]
+
+
+
+
+
+
+
+```
+
+
+```{r }
+
+data_raw_fmk=data_raw[ ,cells_epi_fmk]
+data_tpm_fmk=data_tpm[,cells_epi_fmk]
+
+data_raw_dmso=data_raw[,cells_epi_dmso]
+data_tpm_dmso=data_tpm[,cells_epi_dmso]
+
+geni_comuni_nuovi=intersect(row.names(dati_raw_5),row.names(data_raw_fmk))
+dati_raw_5=dati_raw_5[geni_comuni_nuovi,]
+data_raw_fmk=data_raw_fmk[geni_comuni_nuovi,]
+data_tpm_fmk=data_tpm_fmk[geni_comuni_nuovi,]
+data_raw_dmso=data_raw_dmso[geni_comuni_nuovi,]
+data_tpm_dmso=data_tpm_dmso[geni_comuni_nuovi,]
+
+```
+
+
+
+```{r}
+
+data_pro <- CreateSeuratObject(counts = dati_raw_5, project = "data_wolf")
+#data_diego$stim <- "MUC13230"
+#data_1_seurat$isnt <- "IPS"
+#print(head(x = rownames(x = SIGAH12)))
+#print(head(x = colnames(x = SIGAH12)))
+#print(SIGAH12)
+data_pro<- subset(data_pro, subset = nFeature_RNA > 0)
+data_pro <- NormalizeData(data_pro, verbose = FALSE)
+
+data_pro<- FindVariableFeatures(data_pro, selection.method = "vst", nfeatures = 3000)
+data_pro<- ScaleData(data_pro, verbose = FALSE)
+
+data_pro <- RunPCA(data_pro, npcs = 30, verbose = FALSE)
+data_pro<- RunUMAP(data_pro, reduction = "pca", dims = 1:20,set.seed=42)
+data_pro <- RunTSNE(data_pro, reduction = "pca", dims = 1:20)
+data_pro <- FindNeighbors(data_pro, reduction = "pca", dims = 1:20,k.param=20)
+data_pro <- FindClusters(data_pro, resolution =0.003)
+
+
+data_pro$"label"=age_new
+library(repr)
+library(cowplot)
+options(repr.plot.width=8, repr.plot.height=3)
+#plot batches and clusters
+#p1 <- DimPlot(ips_combined, reduction = "umap", group.by = "stim", dim.1 = 10, dim.2 = 10)
+p2 <- DimPlot(data_pro, reduction = "umap", label = TRUE, dims = c(1,2))
+p3 <- DimPlot(data_pro, reduction = "pca", label = TRUE, dims = c(1,2))
+plt <- plot_grid( p2,p3,rel_widths = c(1.1, 1))
+plt
+
+DefaultAssay(data_pro) <- "RNA"
+
+
+
+p3 <- DimPlot(data_pro, reduction = "pca", label = TRUE, dims = c(1,2),group.by = "label")
+plt <- plot_grid(p3,rel_widths = c(1.1, 1))
+plt
+
+p3 <- DimPlot(data_pro, reduction = "umap", label = TRUE, dims = c(1,2),group.by = "label")
+
+p3 <- DimPlot(data_pro, reduction = "umap", label = TRUE, dims = c(1,2),group.by = "label")
+
+plt <- plot_grid(p3,rel_widths = c(1.1, 1))
+plt
+
+
+p3 <- DimPlot(data_pro, reduction = "tsne", label = TRUE, dims = c(1,2))
+
+plt <- plot_grid(p3,rel_widths = c(1.1, 1))
+plt
+hvg_pro=data_pro@assays$RNA@var.features
+
+
+DefaultAssay(data_pro) <- "RNA"
+PlotGeneExpression <- function(Sobj,gname){
+    #plot gene expression in UMAP
+    p1 <- FeaturePlot(Sobj, reduction="pca",features = c(gname))
+    #plot UMAP colored by cluster
+    #p2 <- DimPlot(Sobj, reduction = "umap", label = TRUE)
+    #plt <- plot_grid(p1, p2,rel_widths = c(1.2, 1))
+    #plot UMAP colored according to IVF/NT condition
+    p3 <- DimPlot(Sobj, reduction = "pca", group.by = "label")
+    
+    #p4 <- VlnPlot(Sobj, features = c(gname))
+    
+    #Arrange them together in a grid
+    #top_row <- plot_grid(p1, p2, p3)
+    plot_grid(p1, ncol = 1, nrow=2)
+}
+
+# EXAMPLE OF USAGE
+#nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Pou5f1"]
+gname<-nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Pou5f1"]
+PlotGeneExpression(data_pro,gname)
+gname<-nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Bmp4"]
+PlotGeneExpression(data_pro,gname)
+gname<-nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Amn"]
+PlotGeneExpression(data_pro,gname)
+```
+```{r }
+#Cellule ExE
+dati_pca=(Embeddings(data_pro, reduction = "pca")[, 1:2])
+dati_pca=as.data.frame(dati_pca)
+
+cellule_exe_1=row.names(dati_pca)[(dati_pca$PC_1 >-5) & (dati_pca$PC_2<-20)]
+
+projec<-as.matrix(GetAssayData(data_pro, slot ="data",assay="RNA"))
+logico=projec[nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Bmp4"],]>1.5
+cellule_exe_2=colnames(projec)[logico]
+
+
+cellule_exe=intersect(cellule_exe_1,cellule_exe_2)
+
+
+#Cellule Epiblasto
+dati_pca=(Embeddings(data_pro, reduction = "pca")[, 1:2])
+dati_pca=as.data.frame(dati_pca)
+
+dim(dati_pca)
+cellule_epi_2=row.names(dati_pca)[(dati_pca$PC_1>5)&(dati_pca$PC_2<20)]
+
+projec<-as.matrix(GetAssayData(data_pro, slot ="data",assay="RNA"))
+logico=projec[nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Pou5f1"],]>1.5
+cellule_epi_1=colnames(projec)[logico]
+
+
+cellule_epi=intersect(cellule_epi_1,cellule_epi_2)
+
+#Cellule VE
+
+dati_pca=(Embeddings(data_pro, reduction = "pca")[, 1:2])
+dati_pca=as.data.frame(dati_pca)
+
+dim(dati_pca)
+cellule_ve_2=row.names(dati_pca)[(dati_pca$PC_1<0)&(dati_pca$PC_2<0)]
+
+projec<-as.matrix(GetAssayData(data_pro, slot ="data",assay="RNA"))
+logico=projec[nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Amn"],]>1.5
+cellule_ve_1=colnames(projec)[logico]
+
+
+
+
+cellule_ve=intersect(cellule_ve_1,cellule_ve_2)
+
+cellule_all=c(cellule_epi,cellule_exe,cellule_ve)
+
+cellule_all=cellule_all[isUnique(cellule_all)]
+
+
+
+logico_2=as.vector(provo_3$nome)%in%cellule_all
+age_spero=age[logico_2]
+cell_all_new=as.vector(provo_3$nome)[as.vector(provo_3$nome)%in%cellule_all]
+#lavoro con cellule_epi_new ,age_spero e projec_new
+
+
+projec_new=projec[,cell_all_new]
+
+
+dati_raw_6=dati_raw_5[,cell_all_new]
+
+
+
+cell_type=rep(0,length(cell_all_new))
+cell_type[cell_all_new%in%cellule_epi]="Epiblast"
+cell_type[cell_all_new%in%cellule_exe]="ExE"
+cell_type[cell_all_new%in%cellule_ve]="VE"
+
+
+
+```
+### Epiblast cells at stages E5.5, E6.25 and E6.5 (Cheng et al)
+
+```{r }
+
+dati_pca=(Embeddings(data_pro, reduction = "pca")[, 1:2])
+dati_pca=as.data.frame(dati_pca)
+
+dim(dati_pca)
+cellule_epi_2=row.names(dati_pca)[dati_pca$PC_1>5&dati_pca$PC_2<20]
+
+projec<-as.matrix(GetAssayData(data_pro, slot ="data",assay="RNA"))
+logico=projec[nome_gene$Gene.stable.ID[nome_gene$Gene.name=="Pou5f1"],]>1.5
+cellule_epi_1=colnames(projec)[logico]
+
+
+cellule_epi=intersect(cellule_epi_1,cellule_epi_2)
+
+logico_2=as.vector(provo_3$nome)%in%cellule_epi
+age_spero=age[logico_2]
+cell_epi_new=as.vector(provo_3$nome)[as.vector(provo_3$nome)%in%cellule_epi]
+#lavoro con cellule_epi_new ,age_spero e projec_new
+
+
+projec_new=projec[,cell_epi_new]
+
+
+dati_raw_6=dati_raw_5[,cell_epi_new]
+
+
+
+
+
+
+
+```
+```{r }
+
+data_de=dati_raw_6
+#tengo solo i geni con media tpm maggiore di 10 nei miei vecchi dati
+geni=row.names(data_de)[row.names(data_de)%in%row.names(data_tpm)]
+dati_confronto=data_de[geni,]
+setwd(base_path)
+#lunghezze=getGeneLengthAndGCContent(row.names(dati_confronto), org="mmu")
+#lunghezze_data=as.data.frame(lunghezze)
+#save(lunghezze_data,file="lunghezze_data.Rda")
+load("lunghezze_data.Rda")
+#lunghezze_data_wolf=lunghezze_data[geni,]
+
+geni_nuovo_nuovo=row.names(lunghezze_data)[!(is.na(lunghezze_data$length))]
+lunghezze_vere=lunghezze_data$length[!(is.na(lunghezze_data$length))]
+
+geni_tengo=geni_nuovo_nuovo[geni_nuovo_nuovo%in%row.names(dati_confronto)]
+lunghezze_vere_vere=lunghezze_vere[geni_nuovo_nuovo%in%row.names(dati_confronto)]
+
+
+dati_confronto_nuovi=dati_confronto[geni_tengo,]
+
+
+sce_jon<-SingleCellExperiment(list(counts=as.matrix(dati_confronto_nuovi)))
+tpm_proiezione_jon=calculateTPM(sce_jon,lengths=lunghezze_vere_vere)
+
+
+sce_pro_jon<- SingleCellExperiment(assays = list(normcounts = as.matrix(tpm_proiezione_jon)))
+logcounts(sce_pro_jon) <- log10(normcounts(sce_pro_jon) + 1)
+rowData(sce_pro_jon)$feature_symbol <- rownames(sce_pro_jon)
+
+
+
+```
+```{r }
+
+data_6_5 <- CreateSeuratObject(counts = data_de, project = "data_wolf")
+#data_diego$stim <- "MUC13230"
+#data_1_seurat$isnt <- "IPS"
+#print(head(x = rownames(x = SIGAH12)))
+#print(head(x = colnames(x = SIGAH12)))
+#print(SIGAH12)
+data_6_5<- subset(data_6_5, subset = nFeature_RNA > 0)
+data_6_5 <- NormalizeData(data_6_5, verbose = FALSE)
+
+data_6_5<- FindVariableFeatures(data_6_5, selection.method = "vst", nfeatures = 1000)
+HVGC=VariableFeatures(data_6_5)
+
+
+```
+
+```{r }
+dist_computation=function(a,b){
+  log_data_tpm <- log10(a+1)[b,]
+#save(log_data_tpm,file="chosen_exprs1_novembre.Rda")
+#load(file="chosen_exprs1_novembre.Rda")
+log_data_tpm<-as.matrix(log_data_tpm)
+dissimilarity <- sqrt((1-cor((log_data_tpm), method = "spearman"))/2)
+#save(dissimilarity,file="dissimilarity_all.Rda")
+#Umap by medium
+
+return(dissimilarity)
+}
+
+```
+
+```{r}
+
+
+geni_comuni=HVGC[HVGC%in%row.names(tpm_proiezione_jon)]
+tpm_proiezione_jon=tpm_proiezione_jon[geni_comuni,]
+
+data_tpm_fmk_jon=data_tpm_fmk[geni_comuni,]
+all_data=cbind(data_tpm_fmk_jon,tpm_proiezione_jon)
+#all_data=data_tpm_fmk
+#load("HVGC_giusto_no_un.Rda")
+#load("dissimilarity_all.Rda")
+#dissimilarity_all=dissimilarity
+#log_data_tpm <- log10(data_tpm[HVGC,]+1)
+
+
+#log_data_tpm<-as.matrix(log_data_tpm)
+#dissimilarity_all <- sqrt((1-cor((log_data_tpm), method = "spearman"))/2)
+
+dissimilarity_all=dist_computation(all_data,geni_comuni)
+#dissimilarity_fmk=dist_computation(fmk,hvg_wolf)
+
+
+```
+
+## Extended Figure 3 E and F
+
+```{r }
+
+set.seed(1000)
+dissimilarity_fmk=dissimilarity_all[colnames(data_tpm_fmk_jon),colnames(tpm_proiezione_jon)]
+dissimilarity_jon=dissimilarity_all[colnames(tpm_proiezione_jon),colnames(tpm_proiezione_jon)]
+
+dm=DiffusionMap(dissimilarity_jon,distance='cosine')
+#fmk=fmk[hvg_fmk,]
+#dm=DiffusionMap(t(fmk))
+DC1=dm$DC1
+DC2=dm$DC2
+#Cluster=as.factor(Cluster_col)
+#clusters_fmk=as.vector(wolf_6_5$label)
+#clusters=meta_dati_course[cells_epi_fmk,]$cluster
+clusters=age_spero
+clusters[age_spero=="embryonic day 5.5"]="5"
+clusters[age_spero=="embryonic day 6.25" ]="6"
+clusters[age_spero=="embryonic day 6.5" ]="7"
+#clusters[clusters==1]="Normal (winner) Epiblast"
+#clusters[clusters==3]="Intermediate"
+#clusters[clusters==4]="Loser Epiblast"
+Cluster=as.factor(clusters)
+tre=data.frame(DC1,DC2,Cluster)
+#dpt <- DPT(dm,tips=20)
+#dpt <- DPT(dm)
+
+
+#pdf("figure_paper_pdf/diffusion_map_all.pdf",width=8,height=5)
+ diffu<-ggplot(tre, aes(x=DC1 , y=DC2 , color= Cluster)) + geom_point()+
+labs(x = "DC1",y="DC2",col="Clusters") + ggtitle("Diffusion Map")+
+   scale_color_manual(breaks = c("5","6","7")
+                                   ,labels = c("Epiblast 5.5"
+                                              
+                                              
+                                              
+                                              ,"Epiblast 6.25"
+                                              ,"Epiblast 6.5"
+                                              
+                                              
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("grey","yellow","red" ))+
+   labs(col="Cluster")
+ 
+ 
+diffu
+
+
+
+#dpt <- DPT(dm)
+
+
+dpt <- DPT(dm,tips=150)
+#save(dpt,file="dpt.Rda")
+#str(dpt)
+tips(dpt)
+
+plot(dpt, col_by = 'DPT333')
+
+
+```
+```{r }
+#wolf<-as.matrix(GetAssayData(wolf_6_5, slot ="data",assay="RNA"))
+#wolf=wolf[hvg_fmk,]
+pred=dm_predict(dm,(dissimilarity_fmk))
+
+
+
+
+
+prima=c(dm$DC1,pred[,1]) 
+seconda=c(dm$DC2,pred[,2])
+clusters_pro_fmk=meta_dati_course[cells_epi_fmk,]$cluster
+#clusters_pro=meta_dati_course[cells_epi_dmso,]$cluster
+#clusters_pro[clusters_pro==1]="5"
+#clusters_pro[clusters_pro==3]="6"
+#clusters_pro=rep(5,length(colnames(data_tpm_dmso)))
+#Cluster_pro=as.factor(clusters_pro)
+
+colore_plot=c(clusters,clusters_pro_fmk)
+colore_plot=as.factor(colore_plot)
+
+dati_plot=data.frame(prima,seconda,colore_plot)
+diffu<-ggplot(dati_plot, aes(x=prima , y=seconda , color=(colore_plot))) + geom_point()+labs(x = "DC1",y="DC2") + ggtitle("Diffusion Map")+labs(col="Cluster")+scale_color_manual(breaks = c("1","3","4","5","6","7")
+                                   ,labels = c("Normal (winner) Epiblast"
+                                              
+        
+                                              ,"Intermediate"
+                                              ,"Loser Epiblast "
+                                              ,"Epiblast 5.5"
+                                              ,"Epiblast 6.25"
+                                              ,"Epiblast 6.5"
+                                              
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("#DD6400","#0000FF","#006400","grey","yellow","red" ))
+
+
+diffu
+
+ 
+
+
+```
+
+
+```{r}
+time_dati_nuovi=dpt$DPT333
+projection_dist_ten=function (dm, new_dcs = NULL, ..., new_data, verbose = FALSE) 
+{
+    if (is.null(new_dcs)) 
+        new_dcs <- dm_predict(dm, new_data, ..., verbose = verbose)
+    else if (!missing(new_data)) 
+        stop("only pass one of new_dcs and new_data")
+    evs <- eigenvectors(dm)
+    nns <- find_knn(evs, 10, query = as.matrix(new_dcs))
+    nn_dist <- nns$index[, 1:10]
+    #nn_dist
+}
+
+
+
+
+
+
+
+dist=projection_dist_ten(dm,new_dcs=pred)
+k10=matrix(0,ncol=10,nrow = length(colnames(data_tpm_fmk_jon)))
+for( i in 1:length(colnames(data_tpm_fmk_jon))){
+k10[i,]=time_dati_nuovi[dist[i,]]
+#print(i)
+}
+time_projec_fmk=apply(k10,1,mean)
+
+```
+
+
+
+```{r}
+
+
+dfForPlot <- data.frame(clusters_fmk = as.character(c(clusters,clusters_pro_fmk))
+                                ,exp=c(time_dati_nuovi,time_projec_fmk)
+                                ,Cluster = as.factor(as.character(c(clusters,clusters_pro_fmk))))
+
+
+
+ggplot(data =dfForPlot
+                    ,aes(x = clusters_fmk
+                         ,y =  exp
+                         ,col = Cluster )) +
+                geom_boxplot(width=0.9,alpha=0.8) + 
+  
+  
+                scale_color_manual(breaks = c("1","3","4","5","6","7")
+                                   ,labels = c("Normal (winner) Epiblast"
+                                              
+                                              
+                                              
+                                              ,"Intermediate"
+                                              ,"Loser Epiblast "
+                                              ,"Epiblast 5.5"
+                                              ,"Epiblast 6.25"
+                                              ,"Epiblast 6.5"
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("#DD6400","#0000FF","#006400" ,"grey","yellow","red")) +
+                
+  ylab("DPT")+xlab(NULL) + 
+  geom_sina()+
+  ggtitle("Pseudo time FMK cells (274) and epiblast cells E5.5, E6.25 and E6.5 (520)")+ylim(c(0,max(time_dati_nuovi)))+theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+
+#pdf("losing_score_dmso_projection.pdf",useDingbats = F)
+
+```
+
+### Projection DMSO epiblast cells
+```{r}
+
+
+geni_comuni=HVGC[HVGC%in%row.names(tpm_proiezione_jon)]
+tpm_proiezione_jon=tpm_proiezione_jon[geni_comuni,]
+
+data_tpm_dmso_jon=data_tpm_dmso[geni_comuni,]
+all_data=cbind(data_tpm_dmso_jon,tpm_proiezione_jon)
+#all_data=data_tpm_fmk
+#load("HVGC_giusto_no_un.Rda")
+#load("dissimilarity_all.Rda")
+#dissimilarity_all=dissimilarity
+#log_data_tpm <- log10(data_tpm[HVGC,]+1)
+
+
+#log_data_tpm<-as.matrix(log_data_tpm)
+#dissimilarity_all <- sqrt((1-cor((log_data_tpm), method = "spearman"))/2)
+
+dissimilarity_all=dist_computation(all_data,geni_comuni)
+#dissimilarity_fmk=dist_computation(fmk,hvg_wolf)
+
+
+```
+
+
+
+
+```{r }
+
+set.seed(1001)
+dissimilarity_dmso=dissimilarity_all[colnames(data_tpm_dmso_jon),colnames(tpm_proiezione_jon)]
+dissimilarity_jon=dissimilarity_all[colnames(tpm_proiezione_jon),colnames(tpm_proiezione_jon)]
+
+dm=DiffusionMap(dissimilarity_jon,distance="cosine")
+#dm=DiffusionMap(dissimilarity_jon)
+#fmk=fmk[hvg_fmk,]
+#dm=DiffusionMap(t(fmk))
+DC1=dm$DC1
+DC2=dm$DC2
+#Cluster=as.factor(Cluster_col)
+#clusters_fmk=as.vector(wolf_6_5$label)
+#clusters=meta_dati_course[cells_epi_fmk,]$cluster
+clusters=age_spero
+clusters[age_spero=="embryonic day 5.5"]="5"
+clusters[age_spero=="embryonic day 6.25" ]="6"
+clusters[age_spero=="embryonic day 6.5" ]="7"
+#clusters[clusters==1]="Normal (winner) Epiblast"
+#clusters[clusters==3]="Intermediate"
+#clusters[clusters==4]="Loser Epiblast"
+Cluster=as.factor(clusters)
+tre=data.frame(DC1,DC2,Cluster)
+#dpt <- DPT(dm,tips=20)
+#dpt <- DPT(dm)
+
+
+#pdf("figure_paper_pdf/diffusion_map_all.pdf",width=8,height=5)
+ diffu<-ggplot(tre, aes(x=DC1 , y=DC2 , color= Cluster)) + geom_point()+
+labs(x = "DC1",y="DC2",col="Clusters") + ggtitle("Diffusion Map")+
+   scale_color_manual(breaks = c("5","6","7")
+                                   ,labels = c("Epiblast 5.5"
+                                              
+                                              
+                                              
+                                              ,"Epiblast 6.25"
+                                              ,"Epiblast 6.5"
+                                              
+                                              
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("grey","yellow","red" ))+
+   labs(col="Cluster")
+ 
+diffu
+
+
+#dpt <- DPT(dm)
+
+
+dpt <- DPT(dm,tips=150)
+#save(dpt,file="dpt.Rda")
+#str(dpt)
+tips(dpt)
+
+plot(dpt, col_by = 'DPT333')
+
+```
+```{r }
+#wolf<-as.matrix(GetAssayData(wolf_6_5, slot ="data",assay="RNA"))
+#wolf=wolf[hvg_fmk,]
+pred=dm_predict(dm,(dissimilarity_dmso))
+
+
+
+
+
+prima=c(dm$DC1,pred[,1]) 
+seconda=c(dm$DC2,pred[,2])
+clusters_pro_dmso=meta_dati_course[cells_epi_dmso,]$cluster
+#clusters_pro=meta_dati_course[cells_epi_dmso,]$cluster
+#clusters_pro[clusters_pro==1]="5"
+#clusters_pro[clusters_pro==3]="6"
+#clusters_pro=rep(5,length(colnames(data_tpm_dmso)))
+#Cluster_pro=as.factor(clusters_pro)
+
+colore_plot=c(clusters,clusters_pro_dmso)
+colore_plot=as.factor(colore_plot)
+
+dati_plot=data.frame(prima,seconda,colore_plot)
+diffu<-ggplot(dati_plot, aes(x=prima , y=seconda , color=(colore_plot))) + geom_point()+labs(x = "DC1",y="DC2") + ggtitle("Diffusion Map")+labs(col="Cluster")+scale_color_manual(breaks = c("1","3","5","6","7")
+                                   ,labels = c("Normal (winner) Epiblast"
+                                              
+        
+                                              ,"Intermediate"
+                                             
+                                              ,"Epiblast 5.5"
+                                              ,"Epiblast 6.25"
+                                              ,"Epiblast 6.5"
+                                              
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("#DD6400","#0000FF","grey","yellow","red" ))
+
+  diffu
+
+
+```
+
+```{r}
+time_dati_nuovi=dpt$DPT333
+projection_dist_ten=function (dm, new_dcs = NULL, ..., new_data, verbose = FALSE) 
+{
+    if (is.null(new_dcs)) 
+        new_dcs <- dm_predict(dm, new_data, ..., verbose = verbose)
+    else if (!missing(new_data)) 
+        stop("only pass one of new_dcs and new_data")
+    evs <- eigenvectors(dm)
+    nns <- find_knn(evs, 10, query = as.matrix(new_dcs))
+    nn_dist <- nns$index[, 1:10]
+    #nn_dist
+}
+
+
+
+
+
+
+
+dist=projection_dist_ten(dm,new_dcs=pred)
+k10=matrix(0,ncol=10,nrow = length(colnames(data_tpm_dmso_jon)))
+for( i in 1:length(colnames(data_tpm_dmso_jon))){
+k10[i,]=time_dati_nuovi[dist[i,]]
+#print(i)
+}
+time_projec_dmso=apply(k10,1,mean)
+
+```
+
+
+## Extended Figure 3 G
+
+
+```{r}
+
+
+dfForPlot <- data.frame(clusters_tutto = as.character(c(clusters,clusters_pro_fmk,clusters_pro_dmso))
+                                ,exp=c(time_dati_nuovi,time_projec_fmk,time_projec_dmso)
+                                ,Cluster = as.factor(as.character(c(clusters,clusters_pro_fmk,clusters_pro_dmso))))
+
+clusters_dmso=clusters_pro_dmso
+clusters_fmk=clusters_pro_fmk
+clusters_ori=clusters
+
+clusters_dmso[clusters_pro_dmso%in%3]="5"
+clusters_dmso[clusters_pro_dmso%in%1]="4"
+
+clusters_fmk[clusters_pro_fmk%in%4]="3"
+clusters_fmk[clusters_pro_fmk%in%3]="2"
+clusters_fmk[clusters_pro_fmk%in%1]="1"
+
+clusters_ori[clusters%in%5]="6"
+clusters_ori[clusters%in%6]="7"
+clusters_ori[clusters%in%7]="8"
+
+clusters_all=c(clusters_ori,clusters_fmk,clusters_dmso)
+
+nuovo_ordine <- factor(clusters_all,
+    levels = c("1","2","3","4","5","6","7","8",ordered = TRUE))
+#all_clu=c(ci_name,dmso_name)
+
+
+
+
+
+ggplot(data =dfForPlot
+                    ,aes(x = nuovo_ordine
+                         ,y =  dfForPlot$exp
+                         ,col = nuovo_ordine )) +
+                geom_boxplot(width=0.9,alpha=0.8) + 
+  
+  
+                scale_color_manual(breaks = c("1","2","3","4","5","6","7","8")
+                                   ,labels = c("Winner Epiblast-CI"
+                                               ,"Intermediate-CI"
+                                              ,"Loser Epiblast-CI"
+                                              ,"Winner Epiblast-DMSO"
+                                              ,"Intermediate-DMSO"
+                                              
+                                              ,"Epiblast 5.5"
+                                              ,"Epiblast 6.25"
+                                              ,"Epiblast 6.5"
+                                              
+                                              )
+                                              
+                                             
+                                   ,values=c("#DD6400","#0000FF","#006400","#DD6400","#0000FF", "grey","yellow","red")) +
+                
+  ylab("DPT")+xlab(NULL) + labs(col="Cluster")+
+  geom_sina()+
+  ggtitle("Pseudo time CI (274), DMSO (238) and epiblast cells E5.5, E6.25 and E6.5 (520)")+ylim(c(0,max(time_dati_nuovi)))+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+
+#pdf("losing_score_dmso_projection.pdf",useDingbats = F)
+
+```
+## Extended Figure 2 A
+
+```{r ,width=12}
+
+data_raw_fmk=data_raw[,cells_epi_fmk]
+data_raw_dmso=data_raw[,cells_epi_dmso]
+
+meta_dati_course_fmk=meta_dati_course[cells_epi_fmk,]
+meta_dati_course_dmso=meta_dati_course[cells_epi_dmso,]
+
+mm.pairs <- readRDS(system.file("exdata", "mouse_cycle_markers.rds", package="scran"))
+out1<-list(g1=mm.pairs$G1,g2=mm.pairs$G2M,s=mm.pairs$S)
+
+cyc<-cyclone(as.matrix(data_raw_fmk),out1)
+score_r<-cyc$scores
+g1_max<-score_r$g1>= 0.5 & score_r$g1>=score_r$g2
+
+g2_max<-score_r$g2>=0.5 & score_r$g2>score_r$g1
+
+s_max<-score_r$g1<0.5 & score_r$g2<0.5
+
+sequenza_fmk<-rep(0,length(cells_epi_fmk))
+sequenza_fmk[g1_max]="G1"
+sequenza_fmk[s_max]="S"
+sequenza_fmk[g2_max]="G2M"
+
+provo_fmk=as.factor(sequenza_fmk)
+provo_fmk <- factor(provo_fmk, levels = c("G2M", "S", "G1"))
+
+
+cyc<-cyclone(as.matrix(data_raw_dmso),out1)
+score_r<-cyc$scores
+g1_max<-score_r$g1>= 0.5 & score_r$g1>=score_r$g2
+
+g2_max<-score_r$g2>=0.5 & score_r$g2>score_r$g1
+
+s_max<-score_r$g1<0.5 & score_r$g2<0.5
+
+sequenza_dmso<-rep(0,length(cells_epi_dmso))
+sequenza_dmso[g1_max]="G1"
+sequenza_dmso[s_max]="S"
+sequenza_dmso[g2_max]="G2M"
+
+
+
+provo_dmso=as.factor(sequenza_dmso)
+provo_dmso <- factor(provo_dmso, levels = c("G2M", "S", "G1"))
+
+provo_all=c(sequenza_fmk,sequenza_dmso)
+provo_all <- factor(provo_all, levels = c("G2M", "S", "G1"))
+
+
+
+
+
+ci_name=meta_dati_course_fmk$cluster
+ci_name[ci_name==3]="Intermediate-CI"
+ci_name[ci_name==4]="Los Epi-CI"
+ci_name[ci_name==1]="Win Epi-CI"
+
+dmso_name=meta_dati_course_dmso$cluster
+dmso_name[dmso_name==3]="Intermediate-DMSO"
+dmso_name[dmso_name==4]="Los Epi-DMSO"
+dmso_name[dmso_name==1]="Win Epi-DMSO"
+name_full=c(ci_name,dmso_name)
+```
+
+
+
+```{r}
+nuovo_ordine <- factor(name_full,
+    levels = c("Win Epi-CI","Win Epi-DMSO","Intermediate-CI","Intermediate-DMSO","Los Epi-CI","Los Epi-DMSO",ordered = TRUE))
+#all_clu=c(ci_name,dmso_name)
+
+
+dfForPlot <- data.frame(Phases =provo_all
+                                ,clu =nuovo_ordine)
+pnm <-ggplot(dfForPlot, aes(y=Phases,x=clu))
+pnm +geom_bar( aes(fill = Phases,y = (..count..)/sum(..count..)),position="fill")+ ggtitle(paste( as.character("Cell cycle CI and DMSO cells")))+ylab("Fraction of cells")+xlab("Cluster")
+
+
+
+
+
+dfForPlot <- data.frame(Phases =sequenza_fmk
+                                ,clu =as.factor(meta_dati_course_fmk$cluster))
+dfForPlot <- data.frame(Phases =provo_all
+                                ,clu =nuovo_ordine)
+pnm <-ggplot(dfForPlot, aes(y=Phases,x=clu))
+pnm +geom_bar( aes(fill = Phases,y = (..count..)))+ ggtitle(paste( as.character("Cell cycle CI and DMSO cells")))+ylab("Number of cells")+xlab("Cluster")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Heteroplasmy
+
+```{r}
+setwd(base_path)
+load("meta_dati.Rda")
+nomi=read.csv("old_2_cell_names.csv")
+nomi=nomi$X0
+nomi=as.vector(nomi)
+setwd(base_path)
+all_pos=read.csv("old_2_mt_all.csv")
+all_pos=all_pos[,-1]
+colnames(all_pos)=substring(colnames(all_pos),2,nchar(colnames(all_pos)))
+
+
+non_so=gsub("[.]", "_", colnames(all_pos))
+colnames(all_pos)=non_so
+row.names(all_pos)=substring(nomi,12,nchar(nomi)-25)
+vedere=substring(colnames(all_pos),1,nchar(colnames(all_pos))-3)
+vedere_numb=substring(vedere,1,nchar(vedere)-1)
+
+
+
+```
+
+
+
+
+```{r }
+#nomi cellule e cluster
+setwd(base_path)
+load("provo_ward_no_un.Rda")
+load("nomi_full.Rda")#name of the old bam file
+#load("nomi_nuovi.Rda")#name on array express
+#load("nomi_vecchi.Rda")#
+nomi_nuovi=meta_dati$nomi_nuovi
+nomi_vecchi=meta_dati$nomi_vecchi
+row.names(provo_ward_no_un)=provo_ward_no_un$Cellname
+provo_ward_no_un=provo_ward_no_un[nomi_full,]
+
+load("provo.Rda")
+cells_epi=row.names(provo)
+
+
+row.names(provo_ward_no_un)=cells_epi
+provo_1=provo_ward_no_un[!(grepl("2",provo_ward_no_un$cluster)),]
+provo_1$nomi_vecchi=row.names(provo_1)
+old=nomi_vecchi[nomi_vecchi%in%row.names(provo_1)]
+provo_2=provo_1[old,]
+new=nomi_nuovi[nomi_vecchi%in%row.names(provo_1)]
+provo_2$nomi_nuovi=new
+row.names(provo_2)=provo_2$Cellname
+cell_common=row.names(all_pos)[row.names(all_pos)%in%row.names(provo_2)]
+provo_3=provo_2[cell_common,]
+
+provo_4=provo_3[grep("FMK",provo_3$condizione),]
+cells_fmk=row.names(provo_4)
+
+provo_5=provo_3[grep("DMSO",provo_3$condizione),]
+cells_dmso=row.names(provo_5)
+```
+
+
+
+```{r}
+
+cell_clu_1=row.names(provo_4)[provo_4$cluster==1]
+cell_clu_3=row.names(provo_4)[provo_4$cluster==3]
+cell_clu_4=row.names(provo_4)[provo_4$cluster==4]
+
+```
+
+
+
+
+```{r }
+all_posizioni=all_pos
+vedere_all=non_so
+vedere=vedere_numb
+
+
+```
+
+
+```{r }
+entropy_method=function(all_pos,cell_stage,vedere_all,vedere_numb,number_reads,number_positions,filtering=1,selection=FALSE,cell_clu_1=NULL,cell_clu_3=NULL,cell_clu_4=NULL){
+all_posizioni=all_pos[cell_stage,]
+vedere_all=non_so
+vedere=vedere_numb
+all_pos=all_pos[cell_stage,]
+prova=matrix(0,ncol=length(unique(vedere)),nrow = length(row.names(all_posizioni)))
+colnames(prova)=unique(vedere)
+row.names(prova)=row.names(all_posizioni)
+colnames(all_posizioni)=vedere
+
+for (i in unique(vedere)){
+  
+prova[,i]=apply(all_posizioni[,colnames(all_posizioni)%in%i],1,function(x){
+  
+  
+  x=as.numeric(as.vector(x))
+  
+  return(sum(x))
+  })
+}
+
+somma=prova
+#save(somma,file="somma_antonio.Rda")
+#load(file="somma_antonio.Rda")
+
+#First filtering step
+somma=as.matrix(somma)
+pos_cov=apply(somma,1,function(x){sum(x>number_reads)})
+
+dfForPlot <- data.frame(clusters =row.names(somma)
+                                ,genes_expression = as.numeric(pos_cov)
+                                )
+ 
+p <- ggplot(data =dfForPlot
+                    ,aes(x = clusters
+                         ,y =  genes_expression
+                         )) 
+                p+geom_point()+
+labs(col="Cluster")+labs(x="Cell")+labs(y="Number of position covered") +ggtitle("QC")
+pos_cov_20000=pos_cov[pos_cov>number_positions]
+somma_qc=somma[pos_cov>number_positions,]
+
+
+##Second filtering step
+if (filtering==1){
+all_pos_update=apply(somma_qc,2,function(x){
+    if(sum(x>number_reads)==length(row.names(somma_qc))){return (TRUE)}
+  
+  else{return (FALSE)}  
+})
+
+somma_qc_qc=somma_qc[,all_pos_update]}
+
+if (filtering==2){
+  
+  all_pos_update=apply(somma_qc,2,function(x){
+  clu_1=x[row.names(somma_qc)%in%cell_clu_1]
+  
+  clu_3=x[row.names(somma_qc)%in%cell_clu_3]
+  
+  clu_4=x[row.names(somma_qc)%in%cell_clu_4]
+  
+    if((sum(clu_1>number_reads)>0.5*length(clu_1))&(sum(clu_3>number_reads)>0.5*length(clu_3))&(sum(clu_4>number_reads)>0.5*length(clu_4))){return (TRUE)}
+  
+  else{return (FALSE)}  
+})
+  
+ 
+
+somma_qc_qc=somma_qc[,all_pos_update]
+
+
+
+}
+
+ if(selection==TRUE){
+   test_cell=apply(somma_qc_qc,1,function(x){sum(x>number_reads)})
+
+cell_common=row.names(somma_qc_qc)[which(test_cell==dim(somma_qc_qc)[2])]
+
+
+
+somma_qc_qc=somma_qc_qc[cell_common,] 
+    
+  }
+indici=apply(somma_qc_qc,2,function(x){
+  logico=which(x>number_reads)
+  
+  return((logico))
+})
+#save(somma_qc_qc,file="somma_qc_qc_antonio.Rda")
+#normalization
+all_posizioni_qc=all_posizioni[row.names(somma_qc_qc),colnames(all_posizioni)%in%colnames(somma_qc_qc)]
+
+#save(all_posizioni_qc,file="all_posizioni_qc_antonio.Rda")
+prova_new=matrix(0,ncol=length(colnames(all_posizioni_qc)),nrow = length(row.names(all_posizioni_qc)))
+colnames(prova_new)=vedere_all[colnames(all_posizioni)%in%colnames(somma_qc_qc)]
+row.names(prova_new)=row.names(somma_qc_qc)
+colnames(all_posizioni_qc)=vedere_all[colnames(all_posizioni)%in%colnames(somma_qc_qc)]
+
+for (i in colnames(all_posizioni_qc)){
+  
+  
+  
+prova_new[,i]=all_posizioni_qc[,i]/(somma_qc_qc[,substring(i,1,nchar(i)-4)]+0.0000000001)
+  }
+  
+all_posizioni_qc_norm=prova_new
+
+###Compute Entropy
+prova_5=matrix(0,ncol=length(colnames(somma_qc_qc)),nrow=length(row.names(all_posizioni_qc_norm)))
+colnames(prova_5)=colnames(somma_qc_qc)
+row.names(prova_5)=row.names(all_posizioni_qc_norm)
+colnames(all_posizioni_qc_norm)=vedere[vedere_all%in%colnames(all_posizioni_qc)]
+for (i in colnames(somma_qc_qc)){
+  
+prova_5[,i]=apply(all_posizioni_qc_norm[,colnames(all_posizioni_qc_norm)%in%i],1,function(x){
+  x=as.numeric(as.vector(x))
+  if (sum(x)==0){return(-1)}
+  else{
+  
+  return(1-max(x))
+  }
+})
+
+}
+
+
+
+prova_entro=prova_5
+entropia=prova_entro
+
+
+
+
+return(list(entropia,prova_new,indici))
+
+}
+```
+
+```{r}
+plot_heteroplasmy_cell_competition=function(position,entropia_matrix,cluster,indici){
+  position=colnames(entropia_matrix)[colnames(entropia_matrix)==position]
+  cluster=cluster[as.numeric(indici[[position]])]
+  mutazione=entropia_matrix[as.numeric(indici[[position]]),position]
+dati_scatter_1=data.frame(as.character(cluster),mutazione)
+
+
+ggplot(data =dati_scatter_1
+                    ,aes(x =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE)
+                         ,y = mutazione
+                         ,col =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE))) +
+geom_boxplot(width=0.9,alpha=0.8)+
+labs(col="Cluster")+labs(x="Cluster")+labs(y="Heteroplasmy") +ggtitle(position) +scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winner Epiblast","Intermediate", "Loser Epiblast"))
+
+}
+
+
+
+
+
+```
+
+
+```{r}
+plot_allele_frequency_cell_competition=function(position,entropia_matrix,allele_matrix,cluster,indici,number){
+  position=colnames(entropia_matrix)[colnames(entropia_matrix)==position]
+ 
+  cluster=cluster[as.numeric(indici[[position]])]
+  a=position
+allele=colnames(allele_matrix)[grep(a,colnames(allele_matrix))]
+
+mutazione_1=allele_matrix[as.numeric(indici[[position]]),allele[1]]
+dati_scatter_1=data.frame(cluster,mutazione_1)
+  
+plot_1=ggplot(data =dati_scatter_1
+                    ,aes(x =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE)
+                         ,y = mutazione_1
+                         ,col =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE))) +
+geom_boxplot(width=0.9,alpha=0.8) + 
+  geom_point()+labs(col="Cluster")+labs(y="Allele Frequency")+labs(col="Cluster")+labs(x="Cluster")+labs(y="Allele frequency") +ggtitle(allele[1])+ylim(0,1)+scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winner Epiblast","Intermediate", "Loser Epiblast"))+theme(axis.text=element_text(size=number))
+
+
+
+mutazione_2=allele_matrix[as.numeric(indici[[position]]),allele[2]]
+dati_scatter_2=data.frame(cluster,mutazione_2)
+  
+plot_2=ggplot(data =dati_scatter_2
+                    ,aes(x =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE)
+                         ,y = mutazione_2
+                         ,col =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE))) +
+geom_boxplot(width=0.9,alpha=0.8) + 
+  geom_point()+labs(col="Cluster")+labs(y="Allele Frequency")+labs(col="Cluster")+labs(x="Cluster")+labs(y="Allele frequency") +ggtitle(allele[2])+ylim(0,1)+scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winner Epiblast","Intermediate", "Loser Epiblast"))+theme(axis.text=element_text(size=number))
+
+
+
+mutazione_3=allele_matrix[as.numeric(indici[[position]]),allele[3]]
+dati_scatter_3=data.frame(cluster,mutazione_3)
+  
+plot_3=ggplot(data =dati_scatter_3
+                    ,aes(x =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE)
+                         ,y = mutazione_3
+                         ,col =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE))) +
+geom_boxplot(width=0.9,alpha=0.8) + 
+  geom_point()+labs(col="Cluster")+labs(y="Allele Frequency")+labs(col="Cluster")+labs(x="Cluster")+labs(y="Allele frequency") +ggtitle(allele[3])+ylim(0,1)+scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winner Epiblast","Intermediate", "Loser Epiblast"))+theme(axis.text=element_text(size=number))
+
+
+
+mutazione_4=allele_matrix[as.numeric(indici[[position]]),allele[4]]
+dati_scatter_4=data.frame(cluster,mutazione_4)
+  
+plot_4=ggplot(data =dati_scatter_4
+                    ,aes(x =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE)
+                         ,y = mutazione_4
+                         ,col =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE))) +
+geom_boxplot(width=0.9,alpha=0.8) + 
+  geom_point()+labs(col="Cluster")+labs(y="Allele Frequency")+labs(col="Cluster")+labs(x="Embryo")+labs(y="Allele frequency") +ggtitle(allele[4])+ylim(0,1)+scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winner Epiblast","Intermediate", "Loser Epiblast"))+theme(axis.text=element_text(size=number))
+
+
+
+
+grid.arrange(plot_1,plot_2,plot_3,plot_4 ,
+             ncol = 2, nrow = 2)
+
+
+}
+
+```
+
+```{r}
+gam_fit_cell_competition=function(entropia_matrix,indici,time,min_heteroplasmy=0.01,min_cells=10){
+position=colnames(entropia_matrix)
+considero=rep(0,length(position))
+for (i in 1:length(position)){
+Y=data.frame(t(entropia_matrix[as.numeric(indici[[position[i]]]),position[i]]))
+considero[i]=sum(Y>min_heteroplasmy)
+considero[considero]
+}
+entropia_matrix_select=entropia_matrix[,which(considero>min_cells)]
+
+position=colnames(entropia_matrix_select)
+
+p_value=rep(0,length(position))
+
+for (i in 1:length(position)){
+  Y=data.frame(t(entropia_matrix_select[as.numeric(indici[[position[i]]]),position[i]]))
+t=time[as.numeric(indici[[position[i]]])]
+
+#Run GAM with LOESS function for all the genes: save the p-value of parametric ANOVA 
+#and the fitted expression values for each genes
+gam.res <- apply(Y, 1, function(z){
+  z=as.numeric(as.vector(z))
+    d <- data.frame(z=z, t=t)
+    tmp <- gam(z ~ lo(t), data=d)
+    p <- summary(tmp)[4][[1]][1,5]  #p-value parametric ANOVA
+    f<-fitted(tmp)
+    #p2 <- summary(tmp)[3][[1]][2,3]  #p-value non-parametric ANOVA
+    c(p,f)
+    #c(p1,p2)   #If we want to return both the parametric and non-parametric p-values
+})
+genes.table<-data.frame(genes.names=rownames(Y))
+genes.table$pvals<-gam.res[1,]
+genes.table$FDR<-p.adjust(genes.table$pvals, method="fdr") #Adjust p-values
+genes.table<-genes.table[order(genes.table$FDR),] #Order the genes according to the FDR
+genes.table$genes.names <- as.character(genes.table$genes.names)
+row.names(genes.table)=genes.table$genes.names
+
+
+results.gam.tot=genes.table
+
+
+#Save the matrix of fitted values
+gam.fitted<-gam.res[-1,]
+
+
+#results_gam=results.gam.tot['genes.names']
+results_gam_nomi=results.gam.tot$genes.names
+gam_fitted=gam.fitted
+p_value[i]=results.gam.tot$pvals
+}
+fdr_update=p.adjust(p_value, method="fdr") 
+all_fdr=data.frame(fdr_update,colnames(entropia_matrix_select))
+colnames(all_fdr)=c('FDR_value',"Position")
+row.names(all_fdr)=colnames(entropia_matrix_select)
+all_fdr=all_fdr[order(all_fdr$'FDR_value'),]
+return(all_fdr)
+
+}
+
+```
+
+```{r}
+plot_losing_score=function(position,entropia_matrix,cluster,time,fit,indici){
+position=colnames(entropia_matrix)[colnames(entropia_matrix)==position]
+cluster=cluster[as.numeric(indici[[position]])]
+cluster=factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE)
+mutation=entropia_matrix[as.numeric(indici[[position]]),position]
+time=time[as.numeric(indici[[position]])]
+dati_scatter_1=data.frame(time,mutation)
+plot<-ggplot(dati_scatter_1, aes(x=time, y=mutation)) + geom_point(aes(colour = (cluster)))+labs(col="Cluster")+labs(x="Losing Score")+labs(y="Heteroplasmy") +scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winning Epiblast","Intermediate", "Losing Epiblast"))+ggtitle(paste(as.character(position),"adjusted p value=",round(fit[position,1],(floor(-log10(fit[position,1])))+1),sep=" "))+
+  geom_smooth(method="loess",se=F,color="black",fullrange=F)
+plot
+}
+```
+
+```{r}
+plot_batch=function(position,entropia_matrix,batch,colour,indici,cluster,number){
+  position=colnames(entropia_matrix)[colnames(entropia_matrix)==position]
+  batch=batch[as.numeric(indici[[position]])]
+  mutazione=entropia_matrix[as.numeric(indici[[position]]),position]
+  colour=colour[as.numeric(indici[[position]])]
+  cluster=cluster[as.numeric(indici[[position]])]
+dati_scatter_1=data.frame(batch,mutazione)
+
+
+ggplot(data =dati_scatter_1
+                    ,aes(x = batch
+                         ,y = mutazione
+                         ,col =factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE))) +
+geom_boxplot(width=0.9,alpha=0.8)+
+labs(col="Cluster")+labs(x="Batch")+labs(y="Heteroplasmy") +ggtitle(position) +scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winner Epiblast","Intermediate", "Loser Epiblast"))+theme(axis.text=element_text(size=number))
+
+}
+```
+
+```{r}
+plot_losing_score_average=function(average,cluster,time,indici,p_value){
+cluster=cluster[as.numeric(indici)]
+cluster=factor(cluster,levels=c("Winner Epiblast","Intermediate","Loser Epiblast"),ordered = TRUE)
+mutation=average[as.numeric(indici)]
+time=time[as.numeric(indici)]
+dati_scatter_1=data.frame(time,mutation)
+plot<-ggplot(dati_scatter_1, aes(x=time, y=mutation)) + geom_point(aes(colour = (cluster)))+labs(col="Cluster")+labs(x="Losing Score")+labs(y="Heteroplasmy") +scale_color_manual(values=c("#DD6400",  "#0000FF","#006400"),labels=c("Winning Epiblast","Intermediate", "Losing Epiblast"))+ggtitle(paste('Average',p_value,sep=" "))+
+  geom_smooth(method="loess",se=F,color="black",fullrange=F)
+plot
+}
+```
+
+### Only CI treated epiblast cells
+
+```{r}
+entropia_matrix_fmk=entropy_method(all_pos,cells_fmk,vedere_all,vedere_numb,50,2000,filtering = 2,cell_clu_1=cell_clu_1,cell_clu_3=cell_clu_3,cell_clu_4=cell_clu_4,selection = FALSE)
+
+```
+
+
+
+```{r}
+entropia_matrix_ci=entropia_matrix_fmk[[1]]
+allele_matrix_ci=entropia_matrix_fmk[[2]]
+indici_ci=entropia_matrix_fmk[[3]]
+cluster_ci=as.character(provo_4[row.names(entropia_matrix_ci),]$cluster)
+cluster_ci[cluster_ci=="1"]="Winner Epiblast"
+cluster_ci[cluster_ci=="3"]="Intermediate"
+cluster_ci[cluster_ci=="4"]="Loser Epiblast"
+condition_ci=as.character(provo_4[row.names(entropia_matrix_ci),]$condizione)
+condition_ci[condition_ci=='FMK']='CI-treated'
+condition_ci[condition_ci=='DMSO']='DMSO-treated'
+```
+
+
+```{r}
+
+
+#plot_heteroplasmy_cell_competition('327',entropia_matrix_ci,cluster_ci,indici_ci)
+
+#plot_heteroplasmy_cell_competition('326',entropia_matrix_ci,cluster_ci,indici_ci)
+
+
+#plot_allele_frequency_cell_competition('326',entropia_matrix_ci,allele_matrix_ci,cluster_ci,indici_ci#,number=5)  
+
+#plot_allele_frequency_cell_competition('327',entropia_matrix_ci,allele_matrix_ci,cluster_ci,indici_ci#,number=5)
+
+                                                              
+
+```
+
+
+
+
+
+
+
+
+
+
+### Losing score analysis
+```{r}
+library(gam)
+#setwd("/Users/gabriele.lubatti/Desktop/Phd/Cell_Competition/Script")
+#load("time_fmk_epi.Rda")
+#load("cells_epi_fmk.Rda")
+row.names(provo_4)=provo_4$nomi_vecchi
+provo_6=provo_4[cells_epi_fmk,]
+provo_6$tempo=time_fmk_epi
+row.names(provo_6)=provo_6$Cellname
+provo_7=provo_6[row.names(entropia_matrix_ci),]
+
+```
+
+
+```{r}
+fit_result=gam_fit_cell_competition(entropia_matrix_ci,indici_ci,provo_7$tempo,0.01,10)
+
+fit_result_final=fit_result[fit_result$FDR_value<0.001,]
+```
+
+## Figure 6 B, C, D, E, F, G and Extended Figure 7 A, B, C, D, E
+
+```{r}
+p=list()
+for(i in row.names(fit_result_final)){
+  q=plot_losing_score(i,entropia_matrix_ci,cluster_ci,provo_7$tempo,fit_result_final,indici_ci)
+  p=list(p,q)
+}
+
+p
+
+```
+
+## Figure 6 A
+```{r}
+
+average=apply(entropia_matrix_ci[,row.names(fit_result_final)],1,mean)
+
+index_average=Reduce(intersect, list(as.numeric(indici_ci[[row.names(fit_result_final)[1]]]),as.numeric(indici_ci[[row.names(fit_result_final)[2]]]),as.numeric(indici_ci[[row.names(fit_result_final)[3]]]),as.numeric(indici_ci[[row.names(fit_result_final)[4]]]),as.numeric(indici_ci[[row.names(fit_result_final)[5]]]),as.numeric(indici_ci[[row.names(fit_result_final)[6]]]),as.numeric(indici_ci[[row.names(fit_result_final)[7]]]),as.numeric(indici_ci[[row.names(fit_result_final)[8]]]),as.numeric(indici_ci[[row.names(fit_result_final)[9]]]),as.numeric(indici_ci[[row.names(fit_result_final)[10]]]),as.numeric(indici_ci[[row.names(fit_result_final)[11]]])))
+
+
+```
+
+```{r}
+
+
+
+z=average[as.numeric(index_average)]
+t=provo_7$tempo[as.numeric(index_average)]
+
+#Run GAM with LOESS function for all the genes: save the p-value of parametric ANOVA 
+#and the fitted expression values for each genes
+    d <- data.frame(z=z, t=t)
+    tmp <- gam(z ~ lo(t), data=d)
+    p_value <- summary(tmp)[4][[1]][1,5]  #p-value parametric ANOVA
+    f<-fitted(tmp)
+    #p2 <- summary(tmp)[3][[1]][2,3]  #p-value non-parametric ANOVA
+    #c(p,f)
+    #c(p1,p2)   #If we want to return both the parametric and non-parametric p-values
+    
+   
+    
+```
+
+```{r}
+
+
+plot_losing_score_average(average,cluster_ci,provo_7$tempo,index_average,p_value)
+
+```
+
+## Extended Figure 7 F, G, H, I, J, K
+
+```{r}
+utile=provo_7
+numero=rep(0,length(utile$cluster))
+numero[utile$cluster==1&utile$Cell_type=="FMK 3"]="a)Win 1"
+numero[utile$cluster==1&utile$Cell_type=="FMK 4"]="a)Win 5"
+numero[utile$cluster==1&utile$Cell_type=="FMK 5"]="a)Win 4"
+numero[utile$cluster==1&utile$Cell_type=="FMK 6"]="a)Win 2"
+numero[utile$cluster==1&utile$Cell_type=="FMK 7"]="a)Win 3"
+numero[utile$cluster==3&utile$Cell_type=="FMK 3"]="b)Int 1"
+numero[utile$cluster==3&utile$Cell_type=="FMK 4"]="b)Int 5"
+numero[utile$cluster==3&utile$Cell_type=="FMK 5"]="b)Int 4"
+numero[utile$cluster==3&utile$Cell_type=="FMK 6"]="b)Int 2"
+numero[utile$cluster==3&utile$Cell_type=="FMK 7"]="b)Int 3"
+numero[utile$cluster==4&utile$Cell_type=="FMK 3"]="c)Los 1"
+numero[utile$cluster==4&utile$Cell_type=="FMK 4"]="c)Los 5"
+numero[utile$cluster==4&utile$Cell_type=="FMK 5"]="c)Los 4"
+numero[utile$cluster==4&utile$Cell_type=="FMK 6"]="c)Los 2"
+numero[utile$cluster==4&utile$Cell_type=="FMK 7"]="c)Los 3"
+
+
+colore=rep(0,length(numero))
+colore[grep("Int",numero)]="#0000FF"
+colore[grep("Los",numero)]="#006400"
+colore[grep("Win",numero)]="#DD6400"
+
+plot_batch('326',entropia_matrix_ci,numero,colore,indici_ci,cluster_ci,number=6)
+
+plot_batch('327',entropia_matrix_ci,numero,colore,indici_ci,cluster_ci,number=6)
+
+plot_batch('303',entropia_matrix_ci,numero,colore,indici_ci,cluster_ci,number=6)
+
+plot_batch('304',entropia_matrix_ci,numero,colore,indici_ci,cluster_ci,number=6)
+
+plot_batch('305',entropia_matrix_ci,numero,colore,indici_ci,cluster_ci,number=6)
+
+plot_batch('300',entropia_matrix_ci,numero,colore,indici_ci,cluster_ci,number=6)
+
+
+
+
+
+```
+
+## Figure 6 I
+```{r}
+
+index_rnr1=Reduce(intersect, list(as.numeric(indici_ci[[row.names(fit_result_final)[1]]]),as.numeric(indici_ci[[row.names(fit_result_final)[2]]]),as.numeric(indici_ci[[row.names(fit_result_final)[6]]]),as.numeric(indici_ci[[row.names(fit_result_final)[7]]]),as.numeric(indici_ci[[row.names(fit_result_final)[8]]]),as.numeric(indici_ci[[row.names(fit_result_final)[11]]])))
+
+position_rnr1=c(row.names(fit_result_final)[1],row.names(fit_result_final)[2],row.names(fit_result_final)[6],row.names(fit_result_final)[7],row.names(fit_result_final)[8],row.names(fit_result_final)[11])
+
+u=entropia_matrix_ci[index_rnr1,position_rnr1]
+
+studio=data.frame(u)
+
+
+
+#la parte sulla correlazione non viene per il formato del dataframe
+correlazione=cor(studio,method="spearman")
+colnames(correlazione)=paste((substr(colnames(correlazione),2,nchar(colnames(correlazione)))),c("mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1"))
+row.names(correlazione)=paste((substr(row.names(correlazione),2,nchar(row.names(correlazione)))),c("mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1"))
+ht21 = Heatmap(correlazione# heat.vals_Mutant_Paired #
+               ,cluster_rows = TRUE
+                  , col= colorRamp2(c(0, round(max(correlazione))), c("white", "red"))
+                  , name = "Spearman correlation"
+                  , column_title = "Spearman correlation FMK cells (215 cells)"
+                  #, cluster_columns = as.dendrogram(my.tree)
+, cluster_columns = TRUE
+                  #, cluster_rows = TRUE #=as.dendrogram(as.numeric(row.names(log_data_tpm)[1:10]) )
+                  #, top_annotation = haCol1
+                  , row_names_gp = gpar(fontsize = 8
+                                       #,col = geneColors
+                   )
+,column_names_gp = gpar(fontsize=8)
+                  , show_column_names = T
+                  , show_row_names = T
+ 
+
+)
+    
+  
+draw(ht21
+    #,column_title = "Absolute values", column_title_side = "top"
+)
+
+
+```
+
+## Extended Figure 7 I
+```{r}
+
+index_top=Reduce(intersect, list(as.numeric(indici_ci[[row.names(fit_result_final)[1]]]),as.numeric(indici_ci[[row.names(fit_result_final)[2]]]),as.numeric(indici_ci[[row.names(fit_result_final)[3]]]),as.numeric(indici_ci[[row.names(fit_result_final)[4]]]),as.numeric(indici_ci[[row.names(fit_result_final)[5]]]),as.numeric(indici_ci[[row.names(fit_result_final)[6]]]),as.numeric(indici_ci[[row.names(fit_result_final)[7]]]),as.numeric(indici_ci[[row.names(fit_result_final)[8]]]),as.numeric(indici_ci[[row.names(fit_result_final)[9]]]),as.numeric(indici_ci[[row.names(fit_result_final)[10]]]),as.numeric(indici_ci[[row.names(fit_result_final)[11]]])))
+
+position_top=c(row.names(fit_result_final)[1],row.names(fit_result_final)[2],row.names(fit_result_final)[3],row.names(fit_result_final)[4],row.names(fit_result_final)[5],row.names(fit_result_final)[6],row.names(fit_result_final)[7],row.names(fit_result_final)[8],row.names(fit_result_final)[9],row.names(fit_result_final)[10],row.names(fit_result_final)[11])
+
+u=entropia_matrix_ci[index_top,position_top]
+
+studio=data.frame(u)
+
+
+
+#la parte sulla correlazione non viene per il formato del dataframe
+correlazione=cor(studio,method="spearman")
+colnames(correlazione)=paste((substr(colnames(correlazione),2,nchar(colnames(correlazione)))),c("mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1"))
+row.names(correlazione)=paste((substr(row.names(correlazione),2,nchar(row.names(correlazione)))),c("mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1","mt-Rnr1"))
+ht21 = Heatmap(correlazione# heat.vals_Mutant_Paired #
+               ,cluster_rows = TRUE
+                  , col= colorRamp2(c(0, round(max(correlazione))), c("white", "red"))
+                  , name = "Spearman correlation"
+                  , column_title = "Spearman correlation FMK cells (214 cells)"
+                  #, cluster_columns = as.dendrogram(my.tree)
+, cluster_columns = TRUE
+                  #, cluster_rows = TRUE #=as.dendrogram(as.numeric(row.names(log_data_tpm)[1:10]) )
+                  #, top_annotation = haCol1
+                  , row_names_gp = gpar(fontsize = 8
+                                       #,col = geneColors
+                   )
+,column_names_gp = gpar(fontsize=8)
+                  , show_column_names = T
+                  , show_row_names = T
+ 
+
+)
+    
+  
+draw(ht21
+    #,column_title = "Absolute values", column_title_side = "top"
+)
+
+
+```
+
+
+## Figure 6 H
+
+```{r}
+identification_cluster=function(a){
+
+
+index_rnr1=Reduce(intersect, list(as.numeric(indici_ci[[row.names(fit_result_final)[1]]]),as.numeric(indici_ci[[row.names(fit_result_final)[2]]]),as.numeric(indici_ci[[row.names(fit_result_final)[6]]]),as.numeric(indici_ci[[row.names(fit_result_final)[7]]]),as.numeric(indici_ci[[row.names(fit_result_final)[8]]]),as.numeric(indici_ci[[row.names(fit_result_final)[11]]])))
+
+position_rnr1=c(row.names(fit_result_final)[1],row.names(fit_result_final)[2],row.names(fit_result_final)[6],row.names(fit_result_final)[7],row.names(fit_result_final)[8],row.names(fit_result_final)[11])
+
+
+
+#indici_mt=c(indici_nuovi[1:6],indici_nuovi[8])
+rnr1=entropia_matrix_ci[index_rnr1,position_rnr1]
+rnr1_cluster=apply(rnr1,1,function(x){
+  x=as.numeric(as.vector(x))
+  x=mean(x)
+ return (x)
+})
+provo_8=provo_7[index_rnr1,]
+Cluster_col=provo_8$cluster
+Cluster_col[Cluster_col==1]="1)Winning Epiblast"
+Cluster_col[Cluster_col==4]="3)Losing Epiblast"
+Cluster_col[Cluster_col==3]="2)Intermediate"
+Cluster=as.factor(Cluster_col)
+frequenze=rep(0,length(rnr1_cluster))
+frequenze[rnr1_cluster>a]=1
+frequenze[rnr1_cluster<=a]=0
+clu_1=sum(frequenze[Cluster=="1)Winning Epiblast"])/(sum(Cluster=="1)Winning Epiblast"))
+print((sum(Cluster=="1)Winning Epiblast")))
+clu_3=sum(frequenze[Cluster=="2)Intermediate"])/(sum(Cluster=="2)Intermediate"))
+print((sum(Cluster=="2)Intermediate")))
+clu_4=sum(frequenze[Cluster=="3)Losing Epiblast"])/(sum(Cluster=="3)Losing Epiblast"))
+print(sum(Cluster=="3)Losing Epiblast"))
+frequenze_norm=c(clu_1,clu_3,clu_4)
+Cluster_name=levels(Cluster)
+Cluster=Cluster_name
+
+dati_cluster=data.frame(frequenze_norm,Cluster)
+
+p=ggplot(dati_cluster,aes(x=Cluster, y=frequenze_norm,fill=Cluster)) + geom_bar(stat="identity")+scale_fill_manual(values=c("#DD6400",  "#0000FF","#006400"))+xlab(NULL)+
+  ylab("Percentage of cells ")+ggtitle("Percentage of cells in cluster carrying significant mutations in mt-Rnr1")
+p
+}
+
+identification_cluster(0.01) 
+
+
+
+```
+
+```{r}
+sessionInfo()
+```
+
