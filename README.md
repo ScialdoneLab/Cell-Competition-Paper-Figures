@@ -1,5 +1,4 @@
 # Cell-Competition-Paper-Figures
-# Cell-Competition
 The repository includes data and scripts for reproducing the figures of the pre-print **Differences in mitochondrial activity trigger cell competition during early mouse development** (https://www.biorxiv.org/content/10.1101/2020.01.15.900613v1). 
 
 The raw data for reproducing all the scripts are on the server submit01ser at the adress:
