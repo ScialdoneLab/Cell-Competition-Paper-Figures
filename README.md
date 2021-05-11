@@ -7,4 +7,4 @@ The input data for running the script is availble in the folder Input_data_figur
 1. data_raw.Rda: raw counts matrix for scRNA seq data
 2. data_tpm.Rda: normalised (TPM) counts matrix for scRNA seq data
 3. raw_counts_allele_mt.csv: matrix with counts information for the four possible alleles for each base on mitochondrial genome.
-Due to their big size, they are not part of this repository. They will be soon availbale online but in the meantime  they are available under request.
+Due to their big size, they are not part of this repository. They will be soon available online but in the meantime  they are available under request.
